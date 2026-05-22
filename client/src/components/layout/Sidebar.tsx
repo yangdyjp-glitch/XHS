@@ -56,7 +56,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <div className="mx-6 border-t border-[#1E293B]" />
 
         {/* Nav */}
-        <nav className="flex-1 px-4 py-5 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.path}

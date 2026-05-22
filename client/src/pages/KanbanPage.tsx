@@ -93,7 +93,7 @@ export default function KanbanPage() {
     <div className="h-full flex flex-col -mx-5 lg:-mx-10 -my-6 lg:-my-8 px-5 lg:px-10 py-6 lg:py-8">
       {/* Editorial Header */}
       <div className="mb-6">
-        <div className="flex items-end justify-between mb-3">
+        <div className="flex items-end gap-8 mb-3">
           <div>
             <p className="eyebrow mb-1">KANBAN</p>
             <h1 className="editorial-heading text-[28px] leading-tight">选题看板</h1>
