@@ -110,7 +110,7 @@ export default function KanbanPage() {
               <select
                 value={filterAccount}
                 onChange={(e) => setFilterAccount(e.target.value ? Number(e.target.value) : "")}
-                className="border border-hairline bg-card pl-3 pr-2 py-1.5 text-sm text-left w-auto focus:outline-none focus:border-accent"
+                className="border border-hairline bg-card pl-3 pr-1 py-1.5 text-sm w-28 focus:outline-none focus:border-accent"
               >
                 <option value="">全部账号</option>
                 {accountsQuery.data?.map((a) => (
