@@ -3,12 +3,12 @@ import { trpc } from "../lib/trpc.js";
 import { SNAPSHOT_DAYS } from "@shared/enums.js";
 
 const METRIC_FIELDS = [
-  { key: "impression", label: "曝光", eyebrow: "IMP" },
-  { key: "view", label: "阅读", eyebrow: "VIEW" },
-  { key: "likeCount", label: "点赞", eyebrow: "LIKE" },
-  { key: "collect", label: "收藏", eyebrow: "FAV" },
-  { key: "commentCount", label: "评论", eyebrow: "CMT" },
-  { key: "shareCount", label: "分享", eyebrow: "SHARE" },
+  { key: "impression", label: "曝光" },
+  { key: "view", label: "阅读" },
+  { key: "likeCount", label: "点赞" },
+  { key: "collect", label: "收藏" },
+  { key: "commentCount", label: "评论" },
+  { key: "shareCount", label: "分享" },
 ] as const;
 
 function daysSincePublish(publishedAt: string | Date): number {
@@ -36,9 +36,11 @@ export default function DataEntryPage() {
     { noteId: selectedNote! },
     { enabled: !!selectedNote, refetchOnWindowFocus: false }
   );
+  const [justSaved, setJustSaved] = useState(false);
   const upsertMutation = trpc.metric.upsert.useMutation({
     onSuccess: (data) => {
       setSaveMsg(data.updated ? "已更新" : "已保存");
+      setJustSaved(true);
       metricsQuery.refetch();
       setTimeout(() => setSaveMsg(""), 2000);
     },
@@ -50,6 +52,10 @@ export default function DataEntryPage() {
 
   useEffect(() => {
     if (!metricsQuery.data) return;
+    if (justSaved) {
+      setJustSaved(false);
+      return;
+    }
     const snap = metricsQuery.data.find((m) => m.daysSincePublish === selectedDay);
     if (snap) {
       setForm({
@@ -193,7 +199,7 @@ export default function DataEntryPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {METRIC_FIELDS.map((f) => (
                     <div key={f.key}>
-                      <label className="eyebrow block mb-1.5">{f.eyebrow}</label>
+                      <label className="eyebrow block mb-1.5">{f.label}</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -209,7 +215,7 @@ export default function DataEntryPage() {
                   ))}
                 </div>
                 <div className="mt-4">
-                  <label className="eyebrow block mb-1.5">NOTES</label>
+                  <label className="eyebrow block mb-1.5">备注</label>
                   <input
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
