@@ -2,12 +2,19 @@ import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
 import { ACCOUNT_LAYER } from "../../../shared/enums.js";
 
+const PRESET_COLORS = [
+  "#E74C3C", "#F39C12", "#F1C40F", "#2ECC71",
+  "#1ABC9C", "#3498DB", "#1F3864", "#9B59B6",
+  "#E91E63", "#FF5722", "#607D8B", "#34495E",
+];
+
 export default function AccountsPage() {
   const { data: accounts, refetch } = trpc.account.list.useQuery();
   const { data: usersList } = trpc.auth.listUsers.useQuery();
   const createAccount = trpc.account.create.useMutation({ onSuccess: () => refetch() });
 
   const [showForm, setShowForm] = useState(false);
+  const [useCustomColor, setUseCustomColor] = useState(false);
   const [form, setForm] = useState({
     accountName: "",
     ownerId: 0,
@@ -22,6 +29,7 @@ export default function AccountsPage() {
     await createAccount.mutateAsync(form);
     setShowForm(false);
     setForm({ accountName: "", ownerId: 0, layer: "midstream", mainColor: "#1F3864", weeklyTarget: 3 });
+    setUseCustomColor(false);
   };
 
   return (
@@ -92,14 +100,47 @@ export default function AccountsPage() {
                 min={1}
               />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label className="eyebrow block mb-1.5">COLOR</label>
-              <input
-                type="color"
-                value={form.mainColor}
-                onChange={(e) => setForm({ ...form, mainColor: e.target.value })}
-                className="w-16 h-9 border border-hairline cursor-pointer"
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => { setForm({ ...form, mainColor: c }); setUseCustomColor(false); }}
+                    className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: form.mainColor === c && !useCustomColor ? "#0F172A" : "transparent",
+                    }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setUseCustomColor(true)}
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs transition-transform hover:scale-110 ${
+                    useCustomColor ? "border-ink bg-paper" : "border-hairline bg-paper"
+                  }`}
+                  title="其他颜色"
+                >
+                  <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </button>
+                {useCustomColor && (
+                  <input
+                    type="color"
+                    value={form.mainColor}
+                    onChange={(e) => setForm({ ...form, mainColor: e.target.value })}
+                    className="w-9 h-9 border border-hairline cursor-pointer ml-1"
+                  />
+                )}
+                <span
+                  className="w-8 h-8 rounded-full border border-hairline ml-1"
+                  style={{ backgroundColor: form.mainColor }}
+                  title={form.mainColor}
+                />
+              </div>
             </div>
           </div>
           <div className="flex gap-3 justify-end pt-1">
