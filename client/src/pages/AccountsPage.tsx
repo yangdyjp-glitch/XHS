@@ -8,12 +8,72 @@ const PRESET_COLORS = [
   "#E91E63", "#FF5722", "#607D8B", "#34495E",
 ];
 
+type EditForm = {
+  id: number;
+  accountName: string;
+  ownerId: number;
+  layer: "upstream" | "midstream" | "closer";
+  mainColor: string;
+  xhsAccountUrl: string;
+  weeklyTarget: number;
+  status: "active" | "paused" | "archived";
+};
+
+function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  const [useCustom, setUseCustom] = useState(!PRESET_COLORS.includes(value));
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {PRESET_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => { onChange(c); setUseCustom(false); }}
+          className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
+          style={{
+            backgroundColor: c,
+            borderColor: value === c && !useCustom ? "#0F172A" : "transparent",
+          }}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={() => setUseCustom(true)}
+        className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-transform hover:scale-110 ${
+          useCustom ? "border-ink bg-paper" : "border-hairline bg-paper"
+        }`}
+        title="其他颜色"
+      >
+        <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+      </button>
+      {useCustom && (
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-9 h-9 border border-hairline cursor-pointer ml-1"
+        />
+      )}
+      <span
+        className="w-8 h-8 rounded-full border border-hairline ml-1"
+        style={{ backgroundColor: value }}
+        title={value}
+      />
+    </div>
+  );
+}
+
 export default function AccountsPage() {
   const { data: accounts, refetch } = trpc.account.list.useQuery();
   const { data: usersList } = trpc.auth.listUsers.useQuery();
   const createAccount = trpc.account.create.useMutation({ onSuccess: () => refetch() });
+  const updateAccount = trpc.account.update.useMutation({ onSuccess: () => { refetch(); setEditing(null); } });
+  const deleteAccount = trpc.account.delete.useMutation({ onSuccess: () => refetch() });
 
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<EditForm | null>(null);
   const [useCustomColor, setUseCustomColor] = useState(false);
   const [form, setForm] = useState({
     accountName: "",
@@ -30,6 +90,31 @@ export default function AccountsPage() {
     setShowForm(false);
     setForm({ accountName: "", ownerId: 0, layer: "midstream", mainColor: "#1F3864", weeklyTarget: 3 });
     setUseCustomColor(false);
+  };
+
+  const handleEdit = (acc: NonNullable<typeof accounts>[0]) => {
+    setEditing({
+      id: acc.id,
+      accountName: acc.accountName,
+      ownerId: acc.ownerId,
+      layer: acc.layer as EditForm["layer"],
+      mainColor: acc.mainColor || "#1F3864",
+      xhsAccountUrl: acc.xhsAccountUrl || "",
+      weeklyTarget: acc.weeklyTarget ?? 3,
+      status: acc.status as EditForm["status"],
+    });
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    await updateAccount.mutateAsync(editing);
+  };
+
+  const handleDelete = (id: number, name: string) => {
+    if (window.confirm(`确定要删除账号「${name}」吗？此操作不可撤销。`)) {
+      deleteAccount.mutate({ id });
+    }
   };
 
   return (
@@ -102,50 +187,92 @@ export default function AccountsPage() {
             </div>
             <div className="md:col-span-2">
               <label className="eyebrow block mb-1.5">COLOR</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {PRESET_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => { setForm({ ...form, mainColor: c }); setUseCustomColor(false); }}
-                    className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
-                    style={{
-                      backgroundColor: c,
-                      borderColor: form.mainColor === c && !useCustomColor ? "#0F172A" : "transparent",
-                    }}
-                  />
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setUseCustomColor(true)}
-                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs transition-transform hover:scale-110 ${
-                    useCustomColor ? "border-ink bg-paper" : "border-hairline bg-paper"
-                  }`}
-                  title="其他颜色"
-                >
-                  <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </button>
-                {useCustomColor && (
-                  <input
-                    type="color"
-                    value={form.mainColor}
-                    onChange={(e) => setForm({ ...form, mainColor: e.target.value })}
-                    className="w-9 h-9 border border-hairline cursor-pointer ml-1"
-                  />
-                )}
-                <span
-                  className="w-8 h-8 rounded-full border border-hairline ml-1"
-                  style={{ backgroundColor: form.mainColor }}
-                  title={form.mainColor}
-                />
-              </div>
+              <ColorPicker value={form.mainColor} onChange={(c) => setForm({ ...form, mainColor: c })} />
             </div>
           </div>
           <div className="flex gap-3 justify-end pt-1">
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-muted hover:text-ink transition-colors">取消</button>
             <button type="submit" className="px-5 py-1.5 bg-ink text-card text-sm rounded-full hover:bg-ink-soft transition-colors">创建</button>
+          </div>
+        </form>
+      )}
+
+      {editing && (
+        <form onSubmit={handleUpdate} className="card-surface p-5 mb-5 space-y-4">
+          <p className="eyebrow mb-3">EDIT ACCOUNT</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="eyebrow block mb-1.5">NAME</label>
+              <input
+                value={editing.accountName}
+                onChange={(e) => setEditing({ ...editing, accountName: e.target.value })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
+                required
+              />
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">OWNER</label>
+              <select
+                value={editing.ownerId}
+                onChange={(e) => setEditing({ ...editing, ownerId: Number(e.target.value) })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              >
+                {usersList?.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">LAYER</label>
+              <select
+                value={editing.layer}
+                onChange={(e) => setEditing({ ...editing, layer: e.target.value as EditForm["layer"] })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              >
+                {Object.entries(ACCOUNT_LAYER).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">WEEKLY TARGET</label>
+              <input
+                type="number"
+                value={editing.weeklyTarget}
+                onChange={(e) => setEditing({ ...editing, weeklyTarget: Number(e.target.value) })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent transition-colors"
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">XHS URL</label>
+              <input
+                value={editing.xhsAccountUrl}
+                onChange={(e) => setEditing({ ...editing, xhsAccountUrl: e.target.value })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm font-mono focus:outline-none focus:border-accent transition-colors"
+                placeholder="小红书主页链接"
+              />
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">STATUS</label>
+              <select
+                value={editing.status}
+                onChange={(e) => setEditing({ ...editing, status: e.target.value as EditForm["status"] })}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              >
+                <option value="active">启用</option>
+                <option value="paused">暂停</option>
+                <option value="archived">归档</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="eyebrow block mb-1.5">COLOR</label>
+              <ColorPicker value={editing.mainColor} onChange={(c) => setEditing({ ...editing, mainColor: c })} />
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end pt-1">
+            <button type="button" onClick={() => setEditing(null)} className="px-4 py-1.5 text-sm text-muted hover:text-ink transition-colors">取消</button>
+            <button type="submit" className="px-5 py-1.5 bg-ink text-card text-sm rounded-full hover:bg-ink-soft transition-colors">保存</button>
           </div>
         </form>
       )}
@@ -159,6 +286,7 @@ export default function AccountsPage() {
               <th className="px-4 py-3 text-left eyebrow">LAYER</th>
               <th className="px-4 py-3 text-left eyebrow">TARGET</th>
               <th className="px-4 py-3 text-left eyebrow">STATUS</th>
+              <th className="px-4 py-3 text-right eyebrow">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline">
@@ -180,14 +308,28 @@ export default function AccountsPage() {
                 <td className="px-4 py-3 font-mono text-ink-soft">{acc.weeklyTarget}篇/周</td>
                 <td className="px-4 py-3">
                   <span className={`status-pill ${acc.status === "active" ? "status-ok" : "bg-paper-alt text-muted"}`}>
-                    {acc.status === "active" ? "ACTIVE" : acc.status}
+                    {acc.status === "active" ? "ACTIVE" : acc.status === "paused" ? "PAUSED" : "ARCHIVED"}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => handleEdit(acc)}
+                    className="text-xs text-accent hover:text-accent-deep mr-3"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    onClick={() => handleDelete(acc.id, acc.accountName)}
+                    className="text-xs text-muted hover:text-[#991B1B]"
+                  >
+                    删除
+                  </button>
                 </td>
               </tr>
             ))}
             {(!accounts || accounts.length === 0) && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted font-serif italic">
+                <td colSpan={6} className="px-4 py-10 text-center text-muted font-serif italic">
                   暂无账号，点击上方"新建账号"添加
                 </td>
               </tr>

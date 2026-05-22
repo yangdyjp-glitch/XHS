@@ -61,4 +61,18 @@ export const accountRouter = router({
         .where(eq(accounts.id, id));
       return { success: true };
     }),
+
+  delete: leaderProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      try {
+        await db.delete(accounts).where(eq(accounts.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e.cause?.code === "23503") {
+          throw new Error("该账号有关联数据（选题/笔记等），请先删除关联数据或改为归档");
+        }
+        throw e;
+      }
+    }),
 });
