@@ -156,6 +156,7 @@ export const authRouter = router({
       z.object({
         id: z.number(),
         name: z.string().min(1).optional(),
+        email: z.string().email().optional(),
         role: z.enum(["teacher", "leader", "observer"]).optional(),
         mainDirections: z.array(z.string()).optional(),
         isActive: z.boolean().optional(),
@@ -168,6 +169,20 @@ export const authRouter = router({
         .set({ ...updates, updatedAt: new Date() })
         .where(eq(users.id, id));
       return { success: true };
+    }),
+
+  deleteUser: leaderProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      try {
+        await db.delete(users).where(eq(users.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e.cause?.code === "23503") {
+          throw new Error("该用户有关联数据（账号/选题等），请先删除关联数据或改为禁用");
+        }
+        throw e;
+      }
     }),
 
   resetPassword: leaderProcedure
