@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -12,6 +12,57 @@ const KANBAN_COLUMNS = [
   { key: "writing", label: "写作中", eyebrow: "WRITING" },
   { key: "published", label: "已发布", eyebrow: "PUBLISHED" },
 ];
+
+function AccountFilter({ accounts, value, onChange }: {
+  accounts?: { id: number; accountName: string }[];
+  value: number | "";
+  onChange: (v: number | "") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const label = value ? accounts?.find((a) => a.id === value)?.accountName ?? "全部账号" : "全部账号";
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="border border-hairline bg-card px-3 py-1.5 text-sm flex items-center gap-1.5 hover:border-accent transition-colors"
+      >
+        <span>{label}</span>
+        <svg className="w-3 h-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-card border border-hairline shadow-lg z-20 min-w-[200px] max-h-60 overflow-y-auto">
+          <div
+            onClick={() => { onChange(""); setOpen(false); }}
+            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${value === "" ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
+          >
+            全部账号
+          </div>
+          {accounts?.map((a) => (
+            <div
+              key={a.id}
+              onClick={() => { onChange(a.id); setOpen(false); }}
+              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${value === a.id ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
+            >
+              {a.accountName}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function KanbanPage() {
   const { user, isLeader } = useAuth();
@@ -106,18 +157,7 @@ export default function KanbanPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="border border-hairline bg-card px-3 py-1.5 text-sm w-40 focus:outline-none focus:border-accent transition-colors"
             />
-            {isLeader && (
-              <select
-                value={filterAccount}
-                onChange={(e) => setFilterAccount(e.target.value ? Number(e.target.value) : "")}
-                className="border border-hairline bg-card pl-3 pr-1 py-1.5 text-sm w-28 focus:outline-none focus:border-accent"
-              >
-                <option value="">全部账号</option>
-                {accountsQuery.data?.map((a) => (
-                  <option key={a.id} value={a.id}>{a.accountName}</option>
-                ))}
-              </select>
-            )}
+            {isLeader && <AccountFilter accounts={accountsQuery.data} value={filterAccount} onChange={setFilterAccount} />}
             {!isLeader && (
               <button
                 onClick={() => setShowCreate(true)}
