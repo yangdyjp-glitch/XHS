@@ -97,7 +97,7 @@ export default function ReviewPage() {
         {/* Report Detail */}
         <div className="md:col-span-3">
           {!selectedReview ? (
-            <div className="text-muted flex items-center justify-center min-h-[400px] font-serif italic">
+            <div className="text-muted flex items-center justify-center min-h-[400px] font-serif italic md:-translate-x-[17%]">
               {reviewsQuery.data?.length ? "选择一份报告查看详情" : "点击右上角按钮生成第一份报告"}
             </div>
           ) : detailQuery.isLoading ? (
