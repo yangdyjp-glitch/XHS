@@ -10,6 +10,7 @@ function daysSincePublish(publishedAt: string | Date): number {
 
 export default function DataOverviewPage() {
   const [filterAccount, setFilterAccount] = useState<number | "">("");
+  const [expandedNote, setExpandedNote] = useState<number | null>(null);
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const notesQuery = trpc.note.listWithMetrics.useQuery(
     { accountId: filterAccount || undefined },
@@ -46,100 +47,120 @@ export default function DataOverviewPage() {
         <p className="text-sm text-muted font-serif italic py-10 text-center">暂无已发布的笔记</p>
       )}
 
-      <div className="space-y-3">
-        {notesQuery.data?.map((note) => {
-          const age = daysSincePublish(note.publishedAt);
-          const latestMetric = note.metrics.length > 0
-            ? note.metrics[note.metrics.length - 1]
-            : null;
+      {notesQuery.data && notesQuery.data.length > 0 && (
+        <div className="card-surface overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-ink">
+                <th className="px-3 py-2.5 text-left eyebrow">笔记</th>
+                <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
+                <th className="px-2 py-2.5 text-center eyebrow w-16">天数</th>
+                <th className="px-2 py-2.5 text-center eyebrow w-20">快照</th>
+                <th className="px-2 py-2.5 text-right eyebrow">曝光</th>
+                <th className="px-2 py-2.5 text-right eyebrow">阅读</th>
+                <th className="px-2 py-2.5 text-right eyebrow">点赞</th>
+                <th className="px-2 py-2.5 text-right eyebrow">收藏</th>
+                <th className="px-2 py-2.5 text-right eyebrow">评论</th>
+                <th className="px-2 py-2.5 text-right eyebrow">分享</th>
+                <th className="px-2 py-2.5 text-right eyebrow pr-3">互动率</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {notesQuery.data.map((note) => {
+                const age = daysSincePublish(note.publishedAt);
+                const latest = note.metrics.length > 0 ? note.metrics[note.metrics.length - 1] : null;
+                const engagement = latest && latest.impression > 0
+                  ? (((latest.likeCount + latest.collect + latest.commentCount + (latest.shareCount ?? 0)) / latest.impression) * 100).toFixed(1)
+                  : null;
+                const hasMultiple = note.metrics.length > 1;
+                const isExpanded = expandedNote === note.id;
 
-          return (
-            <div key={note.id} className="card-surface p-5">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {note.accountColor && (
-                      <span
-                        className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
-                        style={{ backgroundColor: note.accountColor }}
-                      />
+                return (
+                  <tr
+                    key={note.id}
+                    onClick={() => hasMultiple && setExpandedNote(isExpanded ? null : note.id)}
+                    className={`transition-colors ${hasMultiple ? "cursor-pointer" : ""} ${isExpanded ? "bg-[#EFF6FF]" : "hover:bg-[#F0F4FA]"}`}
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        {note.accountColor && (
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: note.accountColor }} />
+                        )}
+                        <span className="text-ink font-medium truncate max-w-[280px]">{note.finalTitle}</span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2.5 text-muted text-xs truncate">{note.accountName}</td>
+                    <td className="px-2 py-2.5 text-center font-mono text-xs text-muted">{age}天</td>
+                    <td className="px-2 py-2.5 text-center">
+                      <div className="flex gap-0.5 justify-center">
+                        {SNAPSHOT_DAYS.map((d) => {
+                          const has = note.metrics.some((m) => m.daysSincePublish === d);
+                          return (
+                            <span
+                              key={d}
+                              className={`font-mono text-[9px] px-1 py-0.5 leading-none ${
+                                has ? "status-ok" : age >= d ? "bg-[#FEF3C7] text-[#92400E]" : "bg-paper-alt text-muted"
+                              }`}
+                              style={{ borderRadius: 2 }}
+                              title={has ? `T+${d} 已录入` : age >= d ? `T+${d} 缺失` : `T+${d} 未到`}
+                            >
+                              {d}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    {latest ? (
+                      <>
+                        <td className="px-2 py-2.5 text-right font-mono">{latest.impression.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono">{latest.view.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono">{latest.likeCount.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono">{latest.collect.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono">{latest.commentCount.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono">{(latest.shareCount ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-accent font-medium pr-3">
+                          {engagement}%
+                          {hasMultiple && <span className="text-muted text-[9px] ml-1">{isExpanded ? "▲" : "▼"}</span>}
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={7} className="px-2 py-2.5 text-center text-muted text-xs italic">暂无数据</td>
                     )}
-                    <span className="mono-data text-muted">{note.accountName}</span>
-                  </div>
-                  <h3 className="text-sm font-medium text-ink leading-snug">{note.finalTitle}</h3>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="mono-data text-muted">
-                    {new Date(note.publishedAt).toLocaleDateString("zh-CN")}
-                  </div>
-                  <div className="mono-data text-muted mt-0.5">
-                    发布 {age} 天
-                  </div>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* Expanded detail rows rendered outside main table to avoid nesting issues */}
+          {expandedNote && (() => {
+            const note = notesQuery.data.find((n) => n.id === expandedNote);
+            if (!note || note.metrics.length <= 1) return null;
+            return (
+              <div className="bg-[#F8FAFC] border-t border-hairline px-6 py-3">
+                <div className="flex gap-6 text-xs">
+                  {note.metrics.map((m) => {
+                    const eng = m.impression > 0
+                      ? (((m.likeCount + m.collect + m.commentCount + (m.shareCount ?? 0)) / m.impression) * 100).toFixed(1)
+                      : "—";
+                    return (
+                      <div key={m.daysSincePublish} className="flex items-center gap-3">
+                        <span className="font-mono text-ink-soft font-medium">T+{m.daysSincePublish}</span>
+                        <span className="text-muted">{m.impression.toLocaleString()} 曝光</span>
+                        <span className="text-muted">{m.view.toLocaleString()} 阅读</span>
+                        <span className="text-muted">{m.likeCount} 赞</span>
+                        <span className="text-muted">{m.collect} 藏</span>
+                        <span className="text-muted">{m.commentCount} 评</span>
+                        <span className="text-accent font-mono font-medium">{eng}%</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Snapshot pills */}
-              <div className="flex gap-1.5 mb-3">
-                {SNAPSHOT_DAYS.map((d) => {
-                  const has = note.metrics.some((m) => m.daysSincePublish === d);
-                  return (
-                    <span
-                      key={d}
-                      className={`font-mono text-[10px] px-1.5 py-0.5 ${
-                        has ? "status-ok" : age >= d ? "bg-[#FEF3C7] text-[#92400E]" : "bg-paper-alt text-muted"
-                      }`}
-                      style={{ borderRadius: 3 }}
-                    >
-                      T+{d} {has ? "" : age >= d ? "缺" : ""}
-                    </span>
-                  );
-                })}
-              </div>
-
-              {/* Metrics grid */}
-              {note.metrics.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-hairline">
-                        <th className="py-1.5 pr-3 text-left eyebrow">快照</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">曝光</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">阅读</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">点赞</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">收藏</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">评论</th>
-                        <th className="py-1.5 px-3 text-right eyebrow">分享</th>
-                        <th className="py-1.5 pl-3 text-right eyebrow">互动率</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-hairline">
-                      {note.metrics.map((m) => {
-                        const engagement = m.impression > 0
-                          ? (((m.likeCount + m.collect + m.commentCount + (m.shareCount ?? 0)) / m.impression) * 100).toFixed(1)
-                          : "—";
-                        return (
-                          <tr key={m.daysSincePublish} className="hover:bg-[#F0F4FA]">
-                            <td className="py-2 pr-3 font-mono text-ink-soft">T+{m.daysSincePublish}</td>
-                            <td className="py-2 px-3 text-right font-mono">{m.impression.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono">{m.view.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono">{m.likeCount.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono">{m.collect.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono">{m.commentCount.toLocaleString()}</td>
-                            <td className="py-2 px-3 text-right font-mono">{(m.shareCount ?? 0).toLocaleString()}</td>
-                            <td className="py-2 pl-3 text-right font-mono text-accent font-medium">{engagement}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted font-serif italic">暂无数据</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }

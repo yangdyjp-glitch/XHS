@@ -10,8 +10,8 @@ const PRIORITY_STYLE: Record<string, string> = {
 };
 
 const EVENT_CATEGORIES: Record<string, string> = {
-  jlpt: "JLPT考试",
-  eju: "EJU考试",
+  jlpt: "JLPT",
+  eju: "EJU",
   undergraduate: "学部升学",
   graduate: "大学院升学",
   other: "其他",
