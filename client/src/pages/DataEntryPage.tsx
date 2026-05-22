@@ -149,7 +149,7 @@ export default function DataEntryPage() {
         {/* Data entry form */}
         <div className="md:col-span-2">
           {!selectedNote ? (
-            <div className="text-muted text-center py-20 font-serif italic">请选择一个笔记</div>
+            <div className="text-muted flex items-center justify-center min-h-[400px] font-serif italic">请选择一个笔记</div>
           ) : collapsed ? (
             <div className="text-center py-20">
               <button onClick={() => setCollapsed(false)} className="text-sm text-accent hover:text-accent-deep">
