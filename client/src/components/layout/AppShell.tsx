@@ -22,7 +22,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <h1 className="ml-3 text-sm font-serif font-bold text-white">矩阵罗盘</h1>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1">
           <div className="max-w-content mx-auto px-5 lg:px-10 py-6 lg:py-8">
             {children}
           </div>
