@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage.js";
 import ChangePasswordPage from "./pages/ChangePasswordPage.js";
 import KanbanPage from "./pages/KanbanPage.js";
 import DataEntryPage from "./pages/DataEntryPage.js";
+import DataOverviewPage from "./pages/DataOverviewPage.js";
 import ReviewPage from "./pages/ReviewPage.js";
 import RecommendationPage from "./pages/RecommendationPage.js";
 import DashboardPage from "./pages/DashboardPage.js";
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route path="/" component={KanbanPage} />
         <Route path="/topic/:id" component={TopicDetailPage} />
         <Route path="/data-entry" component={DataEntryPage} />
+        <Route path="/data-overview" component={DataOverviewPage} />
         <Route path="/reviews" component={ReviewPage} />
         <Route path="/recommendations" component={RecommendationPage} />
         <Route path="/dashboard" component={DashboardPage} />

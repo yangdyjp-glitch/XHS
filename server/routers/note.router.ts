@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { protectedProcedure, router } from "../_core/trpc.js";
+import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
-import { notes, topics, accounts } from "../../drizzle/schema.js";
+import { notes, topics, accounts, metricSnapshots } from "../../drizzle/schema.js";
 
 export const noteRouter = router({
   listByTopic: protectedProcedure
@@ -117,5 +117,49 @@ export const noteRouter = router({
       const { id, ...updates } = input;
       await db.update(notes).set(updates).where(eq(notes.id, id));
       return { success: true };
+    }),
+
+  listWithMetrics: leaderProcedure
+    .input(z.object({ accountId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const conditions = [eq(notes.status, "live")];
+      if (input?.accountId) {
+        conditions.push(eq(notes.accountId, input.accountId));
+      }
+
+      const notesList = await db
+        .select({
+          id: notes.id,
+          finalTitle: notes.finalTitle,
+          xhsNoteUrl: notes.xhsNoteUrl,
+          publishedAt: notes.publishedAt,
+          accountId: notes.accountId,
+          accountName: accounts.accountName,
+          accountColor: accounts.mainColor,
+        })
+        .from(notes)
+        .leftJoin(accounts, eq(notes.accountId, accounts.id))
+        .where(and(...conditions))
+        .orderBy(desc(notes.publishedAt));
+
+      const noteIds = notesList.map((n) => n.id);
+      if (noteIds.length === 0) return [];
+
+      const metrics = await db
+        .select()
+        .from(metricSnapshots)
+        .where(inArray(metricSnapshots.noteId, noteIds));
+
+      const metricsMap = new Map<number, typeof metrics>();
+      for (const m of metrics) {
+        const arr = metricsMap.get(m.noteId) || [];
+        arr.push(m);
+        metricsMap.set(m.noteId, arr);
+      }
+
+      return notesList.map((n) => ({
+        ...n,
+        metrics: (metricsMap.get(n.id) || []).sort((a, b) => a.daysSincePublish - b.daysSincePublish),
+      }));
     }),
 });

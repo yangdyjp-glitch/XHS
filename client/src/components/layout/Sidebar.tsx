@@ -2,9 +2,19 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "../../hooks/useAuth.js";
 import { cn } from "../../lib/utils.js";
 
-const NAV_ITEMS = [
+const NAV_COMMON = [
   { path: "/", label: "选题看板", sub: "KANBAN" },
+];
+
+const NAV_TEACHER = [
   { path: "/data-entry", label: "数据录入", sub: "DATA ENTRY" },
+];
+
+const NAV_LEADER = [
+  { path: "/data-overview", label: "数据情况", sub: "DATA" },
+];
+
+const NAV_TAIL = [
   { path: "/reviews", label: "复盘报告", sub: "REVIEW" },
   { path: "/recommendations", label: "下期调整", sub: "RECOMMEND" },
   { path: "/dashboard", label: "矩阵总览", sub: "OVERVIEW" },
@@ -38,7 +48,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-screen w-64 lg:w-[280px] flex flex-col transition-transform lg:translate-x-0 lg:static lg:z-auto lg:h-screen",
+          "fixed top-0 left-0 z-50 h-screen w-64 lg:w-[280px] flex flex-col transition-transform lg:translate-x-0 lg:static lg:z-auto lg:min-h-screen lg:h-auto",
           "bg-[#0F172A] text-[#94A3B8]",
           open ? "translate-x-0" : "-translate-x-full"
         )}
@@ -57,7 +67,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Nav */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-          {NAV_ITEMS.map((item) => (
+          {[...NAV_COMMON, ...(isLeader ? NAV_LEADER : NAV_TEACHER), ...NAV_TAIL].map((item) => (
             <Link
               key={item.path}
               href={item.path}
