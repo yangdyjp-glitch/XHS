@@ -15,6 +15,10 @@ const EVENT_CATEGORIES: Record<string, string> = {
   eju: "EJU",
   undergraduate: "学部升学",
   graduate: "大学院升学",
+  master_exam: "修士入试",
+  language_school: "语言学校",
+  coe: "在留资格",
+  english_test: "英语考试",
   other: "其他",
 };
 
@@ -23,6 +27,10 @@ const CATEGORY_STYLE: Record<string, string> = {
   eju: "bg-[#FFF7ED] text-[#9A3412]",
   undergraduate: "bg-[#DCFCE7] text-[#166534]",
   graduate: "bg-[#DBEAFE] text-accent",
+  master_exam: "bg-[#FEF3C7] text-[#92400E]",
+  language_school: "bg-[#CFFAFE] text-[#155E75]",
+  coe: "bg-[#FCE7F3] text-[#9D174D]",
+  english_test: "bg-[#E0E7FF] text-[#3730A3]",
   other: "bg-paper-alt text-ink-soft",
 };
 
