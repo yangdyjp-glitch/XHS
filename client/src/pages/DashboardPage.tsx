@@ -71,13 +71,13 @@ export default function DashboardPage() {
   const statusMap = totals.topicsByStatus as Record<string, number>;
 
   const kpiItems = [
-    { eyebrow: "活跃账号", value: totals.totalAccounts, unit: "个" },
-    { eyebrow: "本周发布", value: totals.totalNotesThisWeek, unit: "篇" },
-    { eyebrow: "总曝光", value: totals.totalImpression, unit: "" },
-    { eyebrow: "总阅读", value: totals.totalView, unit: "" },
-    { eyebrow: "总点赞", value: totals.totalLike, unit: "" },
-    { eyebrow: "总收藏", value: totals.totalCollect, unit: "" },
-    { eyebrow: "总评论", value: totals.totalComment, unit: "" },
+    { eyebrow: "活跃账号", value: totals.totalAccounts, unit: "个", color: "" },
+    { eyebrow: "本周发布", value: totals.totalNotesThisWeek, unit: "篇", color: "" },
+    { eyebrow: "总曝光", value: totals.totalImpression, unit: "", color: "text-[#2563EB]" },
+    { eyebrow: "总阅读", value: totals.totalView, unit: "", color: "text-[#059669]" },
+    { eyebrow: "总点赞", value: totals.totalLike, unit: "", color: "text-[#DC2626]" },
+    { eyebrow: "总收藏", value: totals.totalCollect, unit: "", color: "text-[#D97706]" },
+    { eyebrow: "总评论", value: totals.totalComment, unit: "", color: "text-[#7C3AED]" },
   ];
 
   return (
@@ -103,7 +103,7 @@ export default function DashboardPage() {
               className={`px-5 py-5 ${i > 0 ? "border-l border-hairline" : ""} ${i >= 2 && i < 3 ? "sm:border-l" : ""}`}
             >
               <p className="eyebrow mb-2">{k.eyebrow}</p>
-              <div className="kpi-value">
+              <div className={`kpi-value ${k.color}`}>
                 {(k.value || 0).toLocaleString()}
                 {k.unit && <span className="text-muted text-sm font-sans font-normal ml-1">{k.unit}</span>}
               </div>
