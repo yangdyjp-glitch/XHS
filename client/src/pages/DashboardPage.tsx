@@ -165,13 +165,13 @@ export default function DashboardPage() {
                 {/* Metrics row */}
                 <div className="grid grid-cols-4 gap-2 pt-3 border-t border-hairline">
                   {[
-                    { label: "曝光", value: acct.totalImpression },
-                    { label: "阅读", value: acct.totalView },
-                    { label: "点赞", value: acct.totalLike },
-                    { label: "收藏", value: acct.totalCollect },
+                    { label: "曝光", value: acct.totalImpression, color: "text-[#2563EB]" },
+                    { label: "阅读", value: acct.totalView, color: "text-[#059669]" },
+                    { label: "点赞", value: acct.totalLike, color: "text-[#DC2626]" },
+                    { label: "收藏", value: acct.totalCollect, color: "text-[#D97706]" },
                   ].map((m) => (
                     <div key={m.label} className="text-center">
-                      <div className="font-serif font-bold text-ink text-sm">{m.value.toLocaleString()}</div>
+                      <div className={`font-serif font-bold text-sm ${m.color}`}>{m.value.toLocaleString()}</div>
                       <div className="font-mono text-[9px] tracking-widest text-muted mt-0.5">{m.label}</div>
                     </div>
                   ))}
