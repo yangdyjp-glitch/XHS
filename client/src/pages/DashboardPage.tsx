@@ -71,6 +71,7 @@ export default function DashboardPage() {
     { eyebrow: "总阅读", value: totals.totalView, unit: "" },
     { eyebrow: "总点赞", value: totals.totalLike, unit: "" },
     { eyebrow: "总收藏", value: totals.totalCollect, unit: "" },
+    { eyebrow: "总评论", value: totals.totalComment, unit: "" },
   ];
 
   return (
@@ -89,7 +90,7 @@ export default function DashboardPage() {
 
       {/* KPI Row */}
       <div className="card-surface">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
           {kpiItems.map((k, i) => (
             <div
               key={k.eyebrow}

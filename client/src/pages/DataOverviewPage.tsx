@@ -62,7 +62,8 @@ export default function DataOverviewPage() {
                 <th className="px-2 py-2.5 text-right eyebrow">收藏</th>
                 <th className="px-2 py-2.5 text-right eyebrow">评论</th>
                 <th className="px-2 py-2.5 text-right eyebrow">分享</th>
-                <th className="px-2 py-2.5 text-right eyebrow pr-3">互动率</th>
+                <th className="px-2 py-2.5 text-right eyebrow">互动率</th>
+                <th className="px-2 py-2.5 text-center eyebrow pr-3 w-16">链接</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline">
@@ -118,13 +119,26 @@ export default function DataOverviewPage() {
                         <td className="px-2 py-2.5 text-right font-mono">{latest.collect.toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-right font-mono">{latest.commentCount.toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-right font-mono">{(latest.shareCount ?? 0).toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-accent font-medium pr-3">
+                        <td className="px-2 py-2.5 text-right font-mono text-accent font-medium">
                           {engagement}%
                           {hasMultiple && <span className="text-muted text-[9px] ml-1">{isExpanded ? "▲" : "▼"}</span>}
                         </td>
+                        <td className="px-2 py-2.5 text-center pr-3">
+                          {note.xhsNoteUrl && (
+                            <a
+                              href={note.xhsNoteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-block text-[11px] font-mono text-accent hover:text-accent-deep hover:underline"
+                            >
+                              查看
+                            </a>
+                          )}
+                        </td>
                       </>
                     ) : (
-                      <td colSpan={7} className="px-2 py-2.5 text-center text-muted text-xs italic">暂无数据</td>
+                      <td colSpan={8} className="px-2 py-2.5 text-center text-muted text-xs italic">暂无数据</td>
                     )}
                   </tr>
                 );

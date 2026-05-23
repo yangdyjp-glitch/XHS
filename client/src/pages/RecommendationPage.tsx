@@ -97,7 +97,7 @@ export default function RecommendationPage() {
             <button
               onClick={() => handleGenerate()}
               disabled={recommendMutation.isPending}
-              className="bg-accent text-white px-4 py-1.5 text-sm rounded-full hover:bg-accent-deep disabled:opacity-50"
+              className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50"
             >
               {recommendMutation.isPending ? "AI 生成中..." : "AI 生成推荐"}
             </button>
@@ -112,7 +112,7 @@ export default function RecommendationPage() {
           <p className="eyebrow">近期事件</p>
           <button onClick={() => setShowAddEvent(!showAddEvent)}
             className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-              showAddEvent ? "bg-paper-alt text-muted hover:text-ink" : "bg-accent text-white hover:bg-accent-deep"
+              showAddEvent ? "bg-paper-alt text-muted hover:text-ink" : "bg-ink text-card hover:bg-ink-soft"
             }`}>
             {showAddEvent ? "取消" : "+ 添加事件"}
           </button>

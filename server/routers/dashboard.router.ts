@@ -120,6 +120,7 @@ export const dashboardRouter = router({
       const totalView = acctRecentNotes.reduce((s, n) => s + n.view, 0);
       const totalLike = acctRecentNotes.reduce((s, n) => s + n.likeCount, 0);
       const totalCollect = acctRecentNotes.reduce((s, n) => s + n.collect, 0);
+      const totalComment = acctRecentNotes.reduce((s, n) => s + n.commentCount, 0);
 
       const weekPublished = acctWeekNotes.length;
       const target = acct.weeklyTarget || 3;
@@ -131,7 +132,7 @@ export const dashboardRouter = router({
         ...acct,
         weekPublished,
         recentNoteCount: acctRecentNotes.length,
-        totalImpression, totalView, totalLike, totalCollect,
+        totalImpression, totalView, totalLike, totalCollect, totalComment,
         health,
       };
     });
@@ -144,6 +145,7 @@ export const dashboardRouter = router({
       totalView: accountStats.reduce((s, a) => s + a.totalView, 0),
       totalLike: accountStats.reduce((s, a) => s + a.totalLike, 0),
       totalCollect: accountStats.reduce((s, a) => s + a.totalCollect, 0),
+      totalComment: accountStats.reduce((s, a) => s + a.totalComment, 0),
       topicsByStatus: Object.fromEntries(topicCounts.map((t) => [t.status, t.count])),
     };
 
