@@ -56,12 +56,12 @@ export default function DataOverviewPage() {
                 <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
                 <th className="px-2 py-2.5 text-center eyebrow w-16">天数</th>
                 <th className="px-2 py-2.5 text-center eyebrow w-20">快照</th>
-                <th className="px-2 py-2.5 text-right eyebrow">曝光</th>
-                <th className="px-2 py-2.5 text-right eyebrow">阅读</th>
-                <th className="px-2 py-2.5 text-right eyebrow">点赞</th>
-                <th className="px-2 py-2.5 text-right eyebrow">收藏</th>
-                <th className="px-2 py-2.5 text-right eyebrow">评论</th>
-                <th className="px-2 py-2.5 text-right eyebrow">分享</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#2563EB]">曝光</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#059669]">阅读</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#DC2626]">点赞</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#D97706]">收藏</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#7C3AED]">评论</th>
+                <th className="px-2 py-2.5 text-right eyebrow text-[#0891B2]">分享</th>
                 <th className="px-2 py-2.5 text-right eyebrow">互动率</th>
                 <th className="px-2 py-2.5 text-center eyebrow pr-3 w-16">链接</th>
               </tr>
@@ -130,7 +130,7 @@ export default function DataOverviewPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-block text-[11px] font-mono text-accent hover:text-accent-deep hover:underline"
+                              className="inline-block text-[11px] font-mono bg-ink text-card px-2.5 py-1 rounded-full hover:bg-ink-soft transition-colors"
                             >
                               查看
                             </a>
@@ -160,11 +160,11 @@ export default function DataOverviewPage() {
                     return (
                       <div key={m.daysSincePublish} className="flex items-center gap-3">
                         <span className="font-mono text-ink-soft font-medium">T+{m.daysSincePublish}</span>
-                        <span className="text-muted">{m.impression.toLocaleString()} 曝光</span>
-                        <span className="text-muted">{m.view.toLocaleString()} 阅读</span>
-                        <span className="text-muted">{m.likeCount} 赞</span>
-                        <span className="text-muted">{m.collect} 藏</span>
-                        <span className="text-muted">{m.commentCount} 评</span>
+                        <span>{m.impression.toLocaleString()} <span className="text-[#2563EB]">曝光</span></span>
+                        <span>{m.view.toLocaleString()} <span className="text-[#059669]">阅读</span></span>
+                        <span>{m.likeCount} <span className="text-[#DC2626]">赞</span></span>
+                        <span>{m.collect} <span className="text-[#D97706]">藏</span></span>
+                        <span>{m.commentCount} <span className="text-[#7C3AED]">评</span></span>
                         <span className="text-accent font-mono font-medium">{eng}%</span>
                       </div>
                     );

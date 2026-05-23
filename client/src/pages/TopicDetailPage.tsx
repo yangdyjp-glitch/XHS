@@ -188,12 +188,12 @@ export default function TopicDetailPage() {
             {/* Metrics */}
             {note.latestMetric && (
               <div className="mt-2 flex items-center gap-3 font-mono text-xs text-ink-soft pl-0">
-                <span>{note.latestMetric.impression?.toLocaleString()} <span className="text-muted">曝光</span></span>
-                <span>{note.latestMetric.view?.toLocaleString()} <span className="text-muted">阅读</span></span>
-                <span>{note.latestMetric.likeCount} <span className="text-muted">赞</span></span>
-                <span>{note.latestMetric.collect} <span className="text-muted">藏</span></span>
-                <span>{note.latestMetric.commentCount} <span className="text-muted">评</span></span>
-                <span>{note.latestMetric.shareCount ?? 0} <span className="text-muted">转</span></span>
+                <span>{note.latestMetric.impression?.toLocaleString()} <span className="text-[#2563EB]">曝光</span></span>
+                <span>{note.latestMetric.view?.toLocaleString()} <span className="text-[#059669]">阅读</span></span>
+                <span>{note.latestMetric.likeCount} <span className="text-[#DC2626]">赞</span></span>
+                <span>{note.latestMetric.collect} <span className="text-[#D97706]">藏</span></span>
+                <span>{note.latestMetric.commentCount} <span className="text-[#7C3AED]">评</span></span>
+                <span>{note.latestMetric.shareCount ?? 0} <span className="text-[#0891B2]">转</span></span>
                 <span className="text-muted ml-auto">T+{note.latestMetric.daysSincePublish}</span>
               </div>
             )}

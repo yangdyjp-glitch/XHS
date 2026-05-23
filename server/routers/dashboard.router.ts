@@ -18,6 +18,7 @@ interface NoteWithScore {
   collect: number;
   commentCount: number;
   shareCount: number;
+  xhsNoteUrl: string;
   score: number;
 }
 
@@ -38,6 +39,7 @@ async function fetchAllNotesWithScores(since?: Date): Promise<NoteWithScore[]> {
       creatorName: users.name,
       creatorId: topics.creatorId,
       publishedAt: notes.publishedAt,
+      xhsNoteUrl: notes.xhsNoteUrl,
     })
     .from(notes)
     .leftJoin(topics, eq(notes.topicId, topics.id))
@@ -71,6 +73,7 @@ async function fetchAllNotesWithScores(since?: Date): Promise<NoteWithScore[]> {
       collect: best?.collect || 0,
       commentCount: best?.commentCount || 0,
       shareCount: best?.shareCount || 0,
+      xhsNoteUrl: n.xhsNoteUrl || "",
       score: best ? computeScore(best) : 0,
     };
   });
