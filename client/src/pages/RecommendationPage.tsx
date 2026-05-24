@@ -198,11 +198,7 @@ export default function RecommendationPage() {
         <div className="flex items-center justify-between mt-3">
           <p className="mono-data text-muted">事件会自动纳入 AI 推荐上下文</p>
           <button onClick={() => setShowAllEvents(!showAllEvents)}
-            className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${
-              showAllEvents
-                ? "bg-paper-alt text-ink hover:bg-hairline border border-hairline"
-                : "bg-accent text-white hover:bg-accent-deep"
-            }`}>
+            className="mono-data text-accent hover:text-accent-deep transition-colors">
             {showAllEvents ? "收起 ▲" : `查看全部事件 (${upcomingEvents.length}) ▼`}
           </button>
         </div>
