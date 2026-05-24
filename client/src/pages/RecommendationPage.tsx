@@ -38,6 +38,7 @@ export default function RecommendationPage() {
   const { isLeader } = useAuth();
   const [creating, setCreating] = useState<number | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showAllEvents, setShowAllEvents] = useState(false);
   const [eventForm, setEventForm] = useState({ title: "", eventDate: "", category: "other" });
 
   const utils = trpc.useUtils();
@@ -73,8 +74,13 @@ export default function RecommendationPage() {
   };
 
   const upcomingEvents = upcomingQuery.data || [];
+  const urgentEvents = upcomingEvents.filter((ev) => {
+    const daysUntil = Math.ceil((new Date(ev.eventDate).getTime() - Date.now()) / 86400000);
+    return daysUntil >= 0 && daysUntil <= 10;
+  });
+  const displayEvents = showAllEvents ? upcomingEvents : urgentEvents;
   const groupedEvents: Record<string, typeof upcomingEvents> = {};
-  for (const ev of upcomingEvents) {
+  for (const ev of displayEvents) {
     const cat = ev.category || "other";
     if (!groupedEvents[cat]) groupedEvents[cat] = [];
     groupedEvents[cat].push(ev);
@@ -117,13 +123,27 @@ export default function RecommendationPage() {
       {/* Calendar Events */}
       <div className="card-surface p-5">
         <div className="flex items-center justify-between mb-3">
-          <p className="eyebrow">近期事件</p>
-          <button onClick={() => setShowAddEvent(!showAddEvent)}
-            className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-              showAddEvent ? "bg-paper-alt text-muted hover:text-ink" : "bg-ink text-card hover:bg-ink-soft"
-            }`}>
-            {showAddEvent ? "取消" : "+ 添加事件"}
-          </button>
+          <div className="flex items-center gap-3">
+            <p className="eyebrow">近期事件</p>
+            {urgentEvents.length > 0 && !showAllEvents && (
+              <span className="text-[11px] font-mono text-muted">10天内 {urgentEvents.length} 项</span>
+            )}
+            {showAllEvents && (
+              <span className="text-[11px] font-mono text-muted">共 {upcomingEvents.length} 项</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAllEvents(!showAllEvents)}
+              className="px-3 py-1.5 text-sm text-muted hover:text-ink transition-colors font-mono">
+              {showAllEvents ? "收起 ▲" : `展开全部 (${upcomingEvents.length}) ▼`}
+            </button>
+            <button onClick={() => setShowAddEvent(!showAddEvent)}
+              className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                showAddEvent ? "bg-paper-alt text-muted hover:text-ink" : "bg-ink text-card hover:bg-ink-soft"
+              }`}>
+              {showAddEvent ? "取消" : "+ 添加事件"}
+            </button>
+          </div>
         </div>
 
         {showAddEvent && (
@@ -154,8 +174,8 @@ export default function RecommendationPage() {
           </div>
         )}
 
-        {upcomingEvents.length === 0 ? (
-          <p className="text-sm text-muted font-serif italic">加载中...</p>
+        {displayEvents.length === 0 ? (
+          <p className="text-sm text-muted font-serif italic">{upcomingEvents.length === 0 ? "加载中..." : "10天内暂无紧急事件"}</p>
         ) : (
           <div className="space-y-3">
             {Object.entries(groupedEvents).map(([cat, events]) => (
