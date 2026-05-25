@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
@@ -17,6 +18,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
+app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
@@ -77,7 +79,13 @@ app.use(
 async function startServer() {
   if (process.env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../dist/client");
-    app.use(express.static(clientDist));
+    // Hashed assets (JS/CSS) — cache for 1 year
+    app.use("/assets", express.static(path.join(clientDist, "assets"), {
+      maxAge: "365d",
+      immutable: true,
+    }));
+    // Other static files (index.html, favicon, etc.) — no cache
+    app.use(express.static(clientDist, { maxAge: 0 }));
     app.get("/{*path}", (_req, res) => {
       res.sendFile(path.join(clientDist, "index.html"));
     });

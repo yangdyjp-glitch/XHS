@@ -32,6 +32,7 @@
     "@trpc/react-query": "^11.17.0",
     "@trpc/server": "11",
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "date-fns": "^4.2.1",
@@ -44,13 +45,14 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "recharts": "^3.8.1",
+    "tsx": "^4.22.3",
     "wouter": "^3.9.0",
     "zod": "^4.4.3",
-    "tsx": "^4.22.3",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
+    "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch } from "wouter";
 import { trpc, createTRPCClient } from "./lib/trpc.js";
@@ -6,15 +6,17 @@ import { useAuth } from "./hooks/useAuth.js";
 import AppShell from "./components/layout/AppShell.js";
 import LoginPage from "./pages/LoginPage.js";
 import ChangePasswordPage from "./pages/ChangePasswordPage.js";
-import KanbanPage from "./pages/KanbanPage.js";
-import DataEntryPage from "./pages/DataEntryPage.js";
-import DataOverviewPage from "./pages/DataOverviewPage.js";
-import ReviewPage from "./pages/ReviewPage.js";
-import RecommendationPage from "./pages/RecommendationPage.js";
-import DashboardPage from "./pages/DashboardPage.js";
-import AccountsPage from "./pages/AccountsPage.js";
-import UsersPage from "./pages/UsersPage.js";
-import TopicDetailPage from "./pages/TopicDetailPage.js";
+
+// Lazy load all authenticated pages — only download when navigated to
+const KanbanPage = lazy(() => import("./pages/KanbanPage.js"));
+const DataEntryPage = lazy(() => import("./pages/DataEntryPage.js"));
+const DataOverviewPage = lazy(() => import("./pages/DataOverviewPage.js"));
+const ReviewPage = lazy(() => import("./pages/ReviewPage.js"));
+const RecommendationPage = lazy(() => import("./pages/RecommendationPage.js"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage.js"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage.js"));
+const UsersPage = lazy(() => import("./pages/UsersPage.js"));
+const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -37,20 +39,22 @@ function AppRoutes() {
 
   return (
     <AppShell>
-      <Switch>
-        <Route path="/" component={KanbanPage} />
-        <Route path="/topic/:id" component={TopicDetailPage} />
-        <Route path="/data-entry" component={DataEntryPage} />
-        <Route path="/data-overview" component={DataOverviewPage} />
-        <Route path="/reviews" component={ReviewPage} />
-        <Route path="/recommendations" component={RecommendationPage} />
-        <Route path="/dashboard" component={DashboardPage} />
-        <Route path="/admin/accounts" component={AccountsPage} />
-        <Route path="/admin/users" component={UsersPage} />
-        <Route>
-          <div className="text-center py-20 text-gray-400">页面不存在</div>
-        </Route>
-      </Switch>
+      <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
+        <Switch>
+          <Route path="/" component={KanbanPage} />
+          <Route path="/topic/:id" component={TopicDetailPage} />
+          <Route path="/data-entry" component={DataEntryPage} />
+          <Route path="/data-overview" component={DataOverviewPage} />
+          <Route path="/reviews" component={ReviewPage} />
+          <Route path="/recommendations" component={RecommendationPage} />
+          <Route path="/dashboard" component={DashboardPage} />
+          <Route path="/admin/accounts" component={AccountsPage} />
+          <Route path="/admin/users" component={UsersPage} />
+          <Route>
+            <div className="text-center py-20 text-gray-400">页面不存在</div>
+          </Route>
+        </Switch>
+      </Suspense>
     </AppShell>
   );
 }
