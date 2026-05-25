@@ -45,7 +45,7 @@ export default function RecommendationPage() {
   const recommendMutation = trpc.review.aiRecommend.useMutation();
   const pastQuery = trpc.review.listRecommendations.useQuery({ limit: 5 }, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.review.list.useQuery({ type: "weekly", limit: 5 }, { refetchOnWindowFocus: false });
-  const upcomingQuery = trpc.event.upcoming.useQuery({ days: 90 }, { refetchOnWindowFocus: false });
+  const upcomingQuery = trpc.event.upcoming.useQuery({ days: 365 }, { refetchOnWindowFocus: false });
   const createEventMutation = trpc.event.create.useMutation({
     onSuccess: () => { setShowAddEvent(false); setEventForm({ title: "", eventDate: "", category: "other" }); utils.event.upcoming.invalidate(); },
   });

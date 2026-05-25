@@ -18,77 +18,123 @@ export const EVENT_CATEGORIES = {
 } as const;
 
 const BUILTIN_EVENTS = [
-  // JLPT
+  // ==================== JLPT ====================
+  // 2026年7月
   { title: "JLPT 7月考试报名开始", eventDate: "2026-03-15", category: "jlpt" },
   { title: "JLPT 7月考试报名截止", eventDate: "2026-04-15", category: "jlpt" },
   { title: "JLPT 7月考试", eventDate: "2026-07-05", category: "jlpt" },
   { title: "JLPT 7月成绩发布", eventDate: "2026-08-25", category: "jlpt" },
+  // 2026年12月
   { title: "JLPT 12月考试报名开始", eventDate: "2026-08-20", category: "jlpt" },
   { title: "JLPT 12月考试报名截止", eventDate: "2026-09-20", category: "jlpt" },
   { title: "JLPT 12月考试", eventDate: "2026-12-06", category: "jlpt" },
   { title: "JLPT 12月成绩发布", eventDate: "2027-01-25", category: "jlpt" },
+  // 2027年7月（下一周期）
+  { title: "JLPT 2027年7月报名开始", eventDate: "2027-03-15", category: "jlpt" },
+  { title: "JLPT 2027年7月报名截止", eventDate: "2027-04-15", category: "jlpt" },
 
-  // EJU
+  // ==================== EJU ====================
+  // 2026年第1回
   { title: "EJU 第1回考试报名开始", eventDate: "2026-02-16", category: "eju" },
   { title: "EJU 第1回考试报名截止", eventDate: "2026-03-13", category: "eju" },
   { title: "EJU 第1回考试", eventDate: "2026-06-21", category: "eju" },
   { title: "EJU 第1回成绩发布", eventDate: "2026-07-23", category: "eju" },
+  // 2026年第2回
   { title: "EJU 第2回考试报名开始", eventDate: "2026-07-06", category: "eju" },
   { title: "EJU 第2回考试报名截止", eventDate: "2026-07-31", category: "eju" },
   { title: "EJU 第2回考试", eventDate: "2026-11-08", category: "eju" },
   { title: "EJU 第2回成绩发布", eventDate: "2026-12-24", category: "eju" },
+  // 2027年第1回（下一周期）
+  { title: "EJU 2027年第1回报名开始", eventDate: "2027-02-16", category: "eju" },
+  { title: "EJU 2027年第1回报名截止", eventDate: "2027-03-13", category: "eju" },
 
-  // 学部生
+  // ==================== 学部升学 ====================
+  // 2026年度
   { title: "学部生 4月入学出愿截止（多数校）", eventDate: "2025-11-30", category: "undergraduate" },
   { title: "学部生 4月入学合格发表", eventDate: "2026-02-15", category: "undergraduate" },
   { title: "学部生 10月入学出愿截止（多数校）", eventDate: "2026-05-31", category: "undergraduate" },
   { title: "学部生 10月入学合格发表", eventDate: "2026-08-15", category: "undergraduate" },
+  // 2027年4月入学（下一周期）
+  { title: "学部生 2027年4月入学出愿截止（多数校）", eventDate: "2026-11-30", category: "undergraduate" },
+  { title: "学部生 2027年4月入学合格发表", eventDate: "2027-02-15", category: "undergraduate" },
 
-  // 大学院（研究生预科）
+  // ==================== 大学院研究生 ====================
+  // 2026年度
   { title: "研究生 4月入学 海外申请截止", eventDate: "2025-10-31", category: "graduate" },
   { title: "研究生 4月入学 日本国内申请截止", eventDate: "2025-12-15", category: "graduate" },
   { title: "研究生 4月入学 合格发表", eventDate: "2026-01-31", category: "graduate" },
   { title: "研究生 10月入学 海外申请截止", eventDate: "2026-04-30", category: "graduate" },
   { title: "研究生 10月入学 日本国内申请截止", eventDate: "2026-06-15", category: "graduate" },
   { title: "研究生 10月入学 合格发表", eventDate: "2026-07-31", category: "graduate" },
+  // 2027年4月入学（下一周期）
+  { title: "研究生 2027年4月入学 海外申请截止", eventDate: "2026-10-31", category: "graduate" },
+  { title: "研究生 2027年4月入学 日本国内申请截止", eventDate: "2026-12-15", category: "graduate" },
+  { title: "研究生 2027年4月入学 合格发表", eventDate: "2027-01-31", category: "graduate" },
 
-  // 修士入试（大学院正式入学考试）
+  // ==================== 修士入试 ====================
+  // 夏季入试（国公立为主）
   { title: "修士 夏季入试出愿开始（多数国公立）", eventDate: "2026-06-01", category: "master_exam" },
   { title: "修士 夏季入试出愿截止（多数国公立）", eventDate: "2026-07-15", category: "master_exam" },
   { title: "修士 夏季入试（多数国公立）", eventDate: "2026-08-20", category: "master_exam" },
   { title: "修士 夏季入试合格发表", eventDate: "2026-09-10", category: "master_exam" },
+  // 秋季入试（私立为主）
+  { title: "修士 秋季入试出愿开始（私立为主）", eventDate: "2026-09-01", category: "master_exam" },
+  { title: "修士 秋季入试出愿截止（私立为主）", eventDate: "2026-10-15", category: "master_exam" },
+  { title: "修士 秋季入试（私立为主）", eventDate: "2026-11-15", category: "master_exam" },
+  { title: "修士 秋季入试合格发表", eventDate: "2026-12-15", category: "master_exam" },
+  // 冬季入试（2026年4月入学）
   { title: "修士 冬季入试出愿开始", eventDate: "2025-11-15", category: "master_exam" },
   { title: "修士 冬季入试出愿截止", eventDate: "2025-12-20", category: "master_exam" },
   { title: "修士 冬季入试", eventDate: "2026-01-25", category: "master_exam" },
   { title: "修士 冬季入试合格发表", eventDate: "2026-02-20", category: "master_exam" },
+  // 冬季入试（2027年4月入学）
+  { title: "修士 冬季入试出愿开始（2027年4月入学）", eventDate: "2026-11-15", category: "master_exam" },
+  { title: "修士 冬季入试出愿截止（2027年4月入学）", eventDate: "2026-12-20", category: "master_exam" },
+  { title: "修士 冬季入试（2027年4月入学）", eventDate: "2027-01-25", category: "master_exam" },
+  { title: "修士 冬季入试合格发表（2027年4月入学）", eventDate: "2027-02-20", category: "master_exam" },
 
-  // 语言学校（4个intake）
+  // ==================== 语言学校 ====================
+  // 4月生（2026）
   { title: "语言学校 4月生材料截止", eventDate: "2025-11-15", category: "language_school" },
   { title: "语言学校 4月生COE下发", eventDate: "2026-02-25", category: "language_school" },
   { title: "语言学校 4月生入学", eventDate: "2026-04-01", category: "language_school" },
+  // 7月生
   { title: "语言学校 7月生材料截止", eventDate: "2026-03-15", category: "language_school" },
   { title: "语言学校 7月生COE下发", eventDate: "2026-05-25", category: "language_school" },
   { title: "语言学校 7月生入学", eventDate: "2026-07-01", category: "language_school" },
+  // 10月生
   { title: "语言学校 10月生材料截止", eventDate: "2026-05-15", category: "language_school" },
   { title: "语言学校 10月生COE下发", eventDate: "2026-08-25", category: "language_school" },
   { title: "语言学校 10月生入学", eventDate: "2026-10-01", category: "language_school" },
+  // 1月生
   { title: "语言学校 1月生材料截止", eventDate: "2026-09-15", category: "language_school" },
   { title: "语言学校 1月生COE下发", eventDate: "2026-11-25", category: "language_school" },
   { title: "语言学校 1月生入学", eventDate: "2027-01-10", category: "language_school" },
+  // 2027年4月生（下一周期）
+  { title: "语言学校 2027年4月生材料截止", eventDate: "2026-11-15", category: "language_school" },
+  { title: "语言学校 2027年4月生COE下发", eventDate: "2027-02-25", category: "language_school" },
+  { title: "语言学校 2027年4月生入学", eventDate: "2027-04-01", category: "language_school" },
+  // 2027年7月生（下一周期）
+  { title: "语言学校 2027年7月生材料截止", eventDate: "2027-03-15", category: "language_school" },
 
-  // 在留资格认定（COE）— 大学升学用
+  // ==================== 在留资格 ====================
+  // 2026年度
   { title: "4月入学 COE申请截止（大学）", eventDate: "2025-12-15", category: "coe" },
   { title: "4月入学 COE结果下发", eventDate: "2026-02-28", category: "coe" },
   { title: "10月入学 COE申请截止（大学）", eventDate: "2026-06-15", category: "coe" },
   { title: "10月入学 COE结果下发", eventDate: "2026-08-28", category: "coe" },
+  // 2027年4月入学（下一周期）
+  { title: "2027年4月入学 COE申请截止（大学）", eventDate: "2026-12-15", category: "coe" },
+  { title: "2027年4月入学 COE结果下发", eventDate: "2027-02-28", category: "coe" },
 
-  // 英语考试
+  // ==================== 英语考试 ====================
+  { title: "英语成绩准备建议截止（秋季出愿前）", eventDate: "2026-05-31", category: "english_test" },
   { title: "TOEFL iBT 考试（每月多场）", eventDate: "2026-06-15", category: "english_test" },
   { title: "IELTS 考试（每月多场）", eventDate: "2026-06-20", category: "english_test" },
   { title: "TOEIC 考试", eventDate: "2026-06-28", category: "english_test" },
   { title: "TOEFL iBT 考试", eventDate: "2026-09-15", category: "english_test" },
   { title: "IELTS 考试", eventDate: "2026-09-20", category: "english_test" },
-  { title: "英语成绩准备建议截止（秋季出愿前）", eventDate: "2026-05-31", category: "english_test" },
+  { title: "英语成绩准备建议截止（冬季出愿前）", eventDate: "2026-10-31", category: "english_test" },
 ];
 
 export const eventRouter = router({
