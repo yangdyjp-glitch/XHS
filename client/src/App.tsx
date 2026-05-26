@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch } from "wouter";
 import { trpc, createTRPCClient } from "./lib/trpc.js";
@@ -18,6 +18,36 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage.js"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage.js"));
 const UsersPage = lazy(() => import("./pages/UsersPage.js"));
 const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
+
+// Prefetch page chunks after initial render so they're cached for instant navigation
+function usePrefetchRoutes() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      import("./pages/DataEntryPage.js");
+      import("./pages/RecommendationPage.js");
+      import("./pages/ReviewPage.js");
+      import("./pages/DataOverviewPage.js");
+      import("./pages/DashboardPage.js");
+      import("./pages/AccountsPage.js");
+      import("./pages/UsersPage.js");
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+}
+
+// Prefetch API data that slow pages need, so it's cached before navigation
+function usePrefetchData() {
+  const utils = trpc.useUtils();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      utils.note.listForDataEntry.prefetch();
+      utils.event.upcoming.prefetch({ days: 365 });
+      utils.review.listRecommendations.prefetch({ limit: 5 });
+      utils.review.list.prefetch({ type: "weekly", limit: 5 });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [utils]);
+}
 
 function AppRoutes() {
   const { user, isLoading, isTeacher, selectedAccountId } = useAuth();
@@ -45,6 +75,7 @@ function AppRoutes() {
 
   return (
     <AppShell>
+      <Prefetcher />
       <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
         <Switch>
           <Route path="/" component={KanbanPage} />
@@ -63,6 +94,12 @@ function AppRoutes() {
       </Suspense>
     </AppShell>
   );
+}
+
+function Prefetcher() {
+  usePrefetchRoutes();
+  usePrefetchData();
+  return null;
 }
 
 export default function App() {
