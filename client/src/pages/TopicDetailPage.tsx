@@ -63,7 +63,7 @@ export default function TopicDetailPage() {
     }
     if (topic.status === "approved" && topic.creatorId === user?.id) {
       return (
-        <button onClick={() => handleStatusChange("writing")} disabled={statusMutation.isPending} className="bg-accent text-white px-4 py-1.5 text-sm rounded-full hover:bg-accent-deep disabled:opacity-50">
+        <button onClick={() => handleStatusChange("writing")} disabled={statusMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
           {statusMutation.isPending ? "处理中..." : "开始写作"}
         </button>
       );

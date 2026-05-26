@@ -1,8 +1,15 @@
+import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function AccountSelectPage() {
   const { user, setSelectedAccountId, logout } = useAuth();
+  const [, navigate] = useLocation();
+
+  const selectAccount = (id: number) => {
+    setSelectedAccountId(id);
+    navigate("/");
+  };
   const accountsQuery = trpc.account.listByOwner.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -11,7 +18,7 @@ export default function AccountSelectPage() {
 
   // Auto-select if only one account
   if (accounts.length === 1 && !accountsQuery.isLoading) {
-    setSelectedAccountId(accounts[0].id);
+    selectAccount(accounts[0].id);
     return null;
   }
 
@@ -43,7 +50,7 @@ export default function AccountSelectPage() {
               {accounts.map((acc) => (
                 <button
                   key={acc.id}
-                  onClick={() => setSelectedAccountId(acc.id)}
+                  onClick={() => selectAccount(acc.id)}
                   className="w-full card-surface p-4 text-left hover:bg-[#F0F4FA] transition-colors flex items-center gap-3 group"
                 >
                   <span

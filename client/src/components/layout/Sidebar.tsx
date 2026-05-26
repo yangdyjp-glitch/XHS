@@ -37,7 +37,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { user, logout, isLeader, isTeacher, selectedAccountId, setSelectedAccountId } = useAuth();
 
   // Query selected account name for teachers
@@ -73,7 +73,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               "flex items-center gap-2 px-4 py-2.5 rounded bg-[#1E293B]",
               hasMultipleAccounts && "cursor-pointer hover:bg-[#334155] transition-colors"
             )}
-            onClick={hasMultipleAccounts ? () => setSelectedAccountId(null) : undefined}
+            onClick={hasMultipleAccounts ? () => { setSelectedAccountId(null); navigate("/"); } : undefined}
           >
             <span
               className="w-2.5 h-2.5 rounded-full shrink-0"

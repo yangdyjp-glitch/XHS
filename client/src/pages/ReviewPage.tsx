@@ -62,11 +62,7 @@ export default function ReviewPage() {
                   MONTHLY
                 </button>
               </div>
-            ) : (
-              <span className="font-mono text-[11px] tracking-wider text-muted px-3 py-1.5 border border-hairline bg-card">
-                MONTHLY
-              </span>
-            )}
+            ) : null}
             <button
               onClick={() => generateMutation.mutate({ type: tab })}
               disabled={generateMutation.isPending}
