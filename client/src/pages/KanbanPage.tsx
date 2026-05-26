@@ -65,15 +65,18 @@ function AccountFilter({ accounts, value, onChange }: {
 }
 
 export default function KanbanPage() {
-  const { user, isLeader } = useAuth();
+  const { user, isLeader, isTeacher, selectedAccountId } = useAuth();
   const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [publishTopic, setPublishTopic] = useState<{ id: number; title: string } | null>(null);
   const [filterAccount, setFilterAccount] = useState<number | "">("");
   const [search, setSearch] = useState("");
 
+  // Teachers filter by their selected account; leaders can filter freely
+  const effectiveAccountId = isTeacher ? (selectedAccountId || undefined) : (filterAccount || undefined);
+
   const topicsQuery = trpc.topic.list.useQuery(
-    { accountId: filterAccount || undefined, search: search || undefined },
+    { accountId: effectiveAccountId, search: search || undefined },
     { refetchOnWindowFocus: false }
   );
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });

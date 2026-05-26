@@ -1,5 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useAuth } from "../../hooks/useAuth.js";
+import { trpc } from "../../lib/trpc.js";
 import { cn } from "../../lib/utils.js";
 
 const NAV_COMMON = [
@@ -14,10 +15,15 @@ const NAV_LEADER = [
   { path: "/data-overview", label: "数据情况", sub: "DATA" },
 ];
 
-const NAV_TAIL = [
+const NAV_TAIL_LEADER = [
   { path: "/reviews", label: "复盘报告", sub: "REVIEW" },
   { path: "/recommendations", label: "下期调整", sub: "RECOMMEND" },
   { path: "/dashboard", label: "矩阵总览", sub: "OVERVIEW" },
+];
+
+const NAV_TAIL_TEACHER = [
+  { path: "/reviews", label: "复盘报告", sub: "REVIEW" },
+  { path: "/recommendations", label: "下期调整", sub: "RECOMMEND" },
 ];
 
 const ADMIN_ITEMS = [
@@ -32,10 +38,20 @@ interface SidebarProps {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const [location] = useLocation();
-  const { user, logout, isLeader } = useAuth();
+  const { user, logout, isLeader, isTeacher, selectedAccountId, setSelectedAccountId } = useAuth();
+
+  // Query selected account name for teachers
+  const accountsQuery = trpc.account.listByOwner.useQuery(undefined, {
+    enabled: isTeacher,
+    refetchOnWindowFocus: false,
+  });
+  const selectedAccount = accountsQuery.data?.find((a) => a.id === selectedAccountId);
+  const hasMultipleAccounts = (accountsQuery.data?.length || 0) > 1;
 
   const isActive = (path: string) =>
     path === "/" ? location === "/" : location.startsWith(path);
+
+  const navTail = isTeacher ? NAV_TAIL_TEACHER : NAV_TAIL_LEADER;
 
   const sidebarContent = (
     <>
@@ -49,11 +65,37 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </p>
       </div>
 
+      {/* Selected account indicator for teachers */}
+      {isTeacher && selectedAccount && (
+        <div className="mx-4 mb-2">
+          <div
+            className={cn(
+              "flex items-center gap-2 px-4 py-2.5 rounded bg-[#1E293B]",
+              hasMultipleAccounts && "cursor-pointer hover:bg-[#334155] transition-colors"
+            )}
+            onClick={hasMultipleAccounts ? () => setSelectedAccountId(null) : undefined}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ backgroundColor: selectedAccount.mainColor || "#CBD5E1" }}
+            />
+            <span className="text-[13px] text-[#CBD5E1] font-medium truncate flex-1">
+              {selectedAccount.accountName}
+            </span>
+            {hasMultipleAccounts && (
+              <svg className="w-3 h-3 text-[#64748B] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mx-6 border-t border-[#1E293B]" />
 
       {/* Nav */}
       <nav className="px-4 py-6 space-y-2">
-        {[...NAV_COMMON, ...(isLeader ? NAV_LEADER : NAV_TEACHER), ...NAV_TAIL].map((item) => (
+        {[...NAV_COMMON, ...(isLeader ? NAV_LEADER : NAV_TEACHER), ...navTail].map((item) => (
           <Link
             key={item.path}
             href={item.path}

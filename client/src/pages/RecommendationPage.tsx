@@ -35,7 +35,7 @@ const CATEGORY_STYLE: Record<string, string> = {
 };
 
 export default function RecommendationPage() {
-  const { isLeader } = useAuth();
+  const { isLeader, isTeacher, selectedAccountId } = useAuth();
   const [creating, setCreating] = useState<number | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
@@ -57,7 +57,12 @@ export default function RecommendationPage() {
   const latestPastResult = latestPast?.resultJson as any;
   const displayResult = result || latestPastResult;
 
-  const handleGenerate = (reviewId?: number) => { recommendMutation.mutate({ reviewId }); };
+  const handleGenerate = (reviewId?: number) => {
+    recommendMutation.mutate({
+      reviewId,
+      accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
+    });
+  };
 
   const handleCreateTopic = (rec: any, index: number) => {
     setCreating(index);
@@ -65,6 +70,7 @@ export default function RecommendationPage() {
       title: rec.title, topicType: rec.topicType, keywords: rec.keywords,
       plannedPublishDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
       priority: rec.priority || "normal",
+      accountId: selectedAccountId || undefined,
     });
   };
 

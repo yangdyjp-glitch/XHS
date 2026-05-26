@@ -236,16 +236,9 @@ export default function UsersPage() {
                   <button
                     onClick={() => handleEdit(u)}
                     disabled={isBusy}
-                    className="text-xs text-accent hover:text-accent-deep mr-3 disabled:opacity-50"
+                    className="text-xs text-accent hover:text-accent-deep disabled:opacity-50"
                   >
                     编辑
-                  </button>
-                  <button
-                    onClick={() => handleDelete(u.id, u.name)}
-                    disabled={isBusy}
-                    className="text-xs text-muted hover:text-[#991B1B] disabled:opacity-50"
-                  >
-                    {deleteUser.isPending ? "删除中..." : "删除"}
                   </button>
                 </td>
               </tr>

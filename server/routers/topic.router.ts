@@ -97,7 +97,7 @@ export const topicRouter = router({
       return topic;
     }),
 
-  // 老师创建选题，自动绑定自己的账号
+  // 老师创建选题，绑定选定的账号
   create: protectedProcedure
     .input(
       z.object({
@@ -106,25 +106,42 @@ export const topicRouter = router({
         topicType: z.string().min(1, "类型不能为空"),
         keywords: z.array(z.string()).optional(),
         priority: z.string().optional(),
+        accountId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // 找到老师自己的账号
-      const [account] = await db
-        .select({ id: accounts.id })
-        .from(accounts)
-        .where(eq(accounts.ownerId, ctx.user.id))
-        .limit(1);
+      let accountId = input.accountId;
 
-      if (!account) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "你还没有关联的账号，请联系管理员" });
+      if (!accountId) {
+        // Fallback: find first owned account
+        const [account] = await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(eq(accounts.ownerId, ctx.user.id))
+          .limit(1);
+
+        if (!account) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "你还没有关联的账号，请联系管理员" });
+        }
+        accountId = account.id;
+      } else {
+        // Verify the teacher owns this account
+        const [account] = await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(and(eq(accounts.id, accountId), eq(accounts.ownerId, ctx.user.id)))
+          .limit(1);
+
+        if (!account) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "无权操作此账号" });
+        }
       }
 
       const [topic] = await db
         .insert(topics)
         .values({
           title: input.title,
-          accountId: account.id,
+          accountId,
           creatorId: ctx.user.id,
           topicType: input.topicType,
           keywords: input.keywords || [],

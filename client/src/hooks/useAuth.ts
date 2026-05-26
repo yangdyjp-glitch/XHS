@@ -13,19 +13,23 @@ interface User {
 interface AuthState {
   user: User | null;
   checked: boolean;
+  selectedAccountId: number | null;
   setUser: (user: User | null) => void;
   setChecked: (checked: boolean) => void;
+  setSelectedAccountId: (id: number | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   checked: false,
-  setUser: (user) => set({ user }),
+  selectedAccountId: null,
+  setUser: (user) => set({ user, selectedAccountId: null }),
   setChecked: (checked) => set({ checked }),
+  setSelectedAccountId: (selectedAccountId) => set({ selectedAccountId }),
 }));
 
 export function useAuth() {
-  const { user, checked, setUser, setChecked } = useAuthStore();
+  const { user, checked, setUser, setChecked, selectedAccountId, setSelectedAccountId } = useAuthStore();
   const loginMutation = trpc.auth.login.useMutation();
   const logoutMutation = trpc.auth.logout.useMutation();
 
@@ -64,5 +68,8 @@ export function useAuth() {
     login,
     logout,
     isLeader: user?.role === "leader",
+    isTeacher: user?.role === "teacher",
+    selectedAccountId,
+    setSelectedAccountId,
   };
 }

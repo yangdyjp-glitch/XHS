@@ -5,6 +5,21 @@ import { db } from "../db.js";
 import { accounts, users } from "../../drizzle/schema.js";
 
 export const accountRouter = router({
+  // Returns accounts owned by the current user (for teacher account selection)
+  listByOwner: protectedProcedure.query(async ({ ctx }) => {
+    return db
+      .select({
+        id: accounts.id,
+        accountName: accounts.accountName,
+        mainColor: accounts.mainColor,
+        weeklyTarget: accounts.weeklyTarget,
+        status: accounts.status,
+      })
+      .from(accounts)
+      .where(eq(accounts.ownerId, ctx.user.id))
+      .orderBy(accounts.createdAt);
+  }),
+
   list: protectedProcedure.query(async () => {
     return db
       .select({
@@ -64,16 +79,7 @@ export const accountRouter = router({
 
   delete: leaderProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      try {
-        await db.delete(accounts).where(eq(accounts.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        const code = e.code || e.cause?.code;
-        if (code === "23503" || e.message?.includes("foreign key") || e.message?.includes("violates")) {
-          throw new Error("该账号有关联数据（选题/笔记等），请先删除关联数据或改为归档");
-        }
-        throw e;
-      }
+    .mutation(async () => {
+      throw new Error("为保护数据安全，不支持删除账号。请改为归档该账号。");
     }),
 });

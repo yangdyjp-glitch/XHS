@@ -6,6 +6,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import AppShell from "./components/layout/AppShell.js";
 import LoginPage from "./pages/LoginPage.js";
 import ChangePasswordPage from "./pages/ChangePasswordPage.js";
+import AccountSelectPage from "./pages/AccountSelectPage.js";
 
 // Lazy load all authenticated pages — only download when navigated to
 const KanbanPage = lazy(() => import("./pages/KanbanPage.js"));
@@ -19,7 +20,7 @@ const UsersPage = lazy(() => import("./pages/UsersPage.js"));
 const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 
 function AppRoutes() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isTeacher, selectedAccountId } = useAuth();
 
   if (isLoading) {
     return (
@@ -37,6 +38,11 @@ function AppRoutes() {
     return <ChangePasswordPage />;
   }
 
+  // Teachers must select an account before entering the app
+  if (isTeacher && !selectedAccountId) {
+    return <AccountSelectPage />;
+  }
+
   return (
     <AppShell>
       <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
@@ -47,9 +53,9 @@ function AppRoutes() {
           <Route path="/data-overview" component={DataOverviewPage} />
           <Route path="/reviews" component={ReviewPage} />
           <Route path="/recommendations" component={RecommendationPage} />
-          <Route path="/dashboard" component={DashboardPage} />
-          <Route path="/admin/accounts" component={AccountsPage} />
-          <Route path="/admin/users" component={UsersPage} />
+          {!isTeacher && <Route path="/dashboard" component={DashboardPage} />}
+          {!isTeacher && <Route path="/admin/accounts" component={AccountsPage} />}
+          {!isTeacher && <Route path="/admin/users" component={UsersPage} />}
           <Route>
             <div className="text-center py-20 text-gray-400">页面不存在</div>
           </Route>

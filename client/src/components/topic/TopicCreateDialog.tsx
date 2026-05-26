@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "../../lib/trpc.js";
+import { useAuth } from "../../hooks/useAuth.js";
 
 interface Props {
   onClose: () => void;
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export default function TopicCreateDialog({ onClose, onCreated }: Props) {
+  const { selectedAccountId } = useAuth();
   const typesQuery = trpc.topic.listTypes.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -50,6 +52,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
       plannedPublishDate: form.plannedPublishDate,
       topicType: form.topicType.trim(),
       keywords: form.keywords ? form.keywords.split(/[,，\s]+/).filter(Boolean) : undefined,
+      accountId: selectedAccountId || undefined,
     }, {
       onError: (err) => setError(err.message || "创建失败"),
     });

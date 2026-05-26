@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
+import { useAuth } from "../hooks/useAuth.js";
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
 }
 
 export default function ReviewPage() {
-  const [tab, setTab] = useState<"weekly" | "monthly">("weekly");
+  const { isLeader, isTeacher } = useAuth();
+  // Teachers can only use monthly reports
+  const [tab, setTab] = useState<"weekly" | "monthly">(isTeacher ? "monthly" : "weekly");
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
 
   const reviewsQuery = trpc.review.list.useQuery(
@@ -43,26 +46,33 @@ export default function ReviewPage() {
             <h1 className="editorial-heading text-[28px] leading-tight">复盘报告</h1>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex border border-hairline bg-card">
-              <button
-                onClick={() => { setTab("weekly"); setSelectedReview(null); }}
-                className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "weekly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
-              >
-                WEEKLY
-              </button>
-              <button
-                onClick={() => { setTab("monthly"); setSelectedReview(null); }}
-                className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "monthly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
-              >
+            {/* Leaders can switch between weekly/monthly; teachers only see monthly */}
+            {isLeader ? (
+              <div className="flex border border-hairline bg-card">
+                <button
+                  onClick={() => { setTab("weekly"); setSelectedReview(null); }}
+                  className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "weekly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
+                >
+                  WEEKLY
+                </button>
+                <button
+                  onClick={() => { setTab("monthly"); setSelectedReview(null); }}
+                  className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "monthly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
+                >
+                  MONTHLY
+                </button>
+              </div>
+            ) : (
+              <span className="font-mono text-[11px] tracking-wider text-muted px-3 py-1.5 border border-hairline bg-card">
                 MONTHLY
-              </button>
-            </div>
+              </span>
+            )}
             <button
               onClick={() => generateMutation.mutate({ type: tab })}
               disabled={generateMutation.isPending}
               className="bg-ink text-card px-4 py-1.5 text-sm font-medium rounded-full hover:bg-ink-soft disabled:opacity-50"
             >
-              {generateMutation.isPending ? "生成中..." : `生成${tab === "weekly" ? "周" : "月"}报`}
+              {generateMutation.isPending ? "生成中..." : "生成月报"}
             </button>
           </div>
         </div>
