@@ -335,9 +335,16 @@ export default function AccountsPage() {
                   <button
                     onClick={() => handleEdit(acc)}
                     disabled={isBusy}
-                    className="text-xs text-accent hover:text-accent-deep disabled:opacity-50"
+                    className="text-xs text-accent hover:text-accent-deep mr-3 disabled:opacity-50"
                   >
                     编辑
+                  </button>
+                  <button
+                    onClick={() => handleDelete(acc.id, acc.accountName)}
+                    disabled={isBusy}
+                    className="text-xs text-muted hover:text-[#991B1B] disabled:opacity-50"
+                  >
+                    {deleteAccount.isPending ? "删除中..." : "删除"}
                   </button>
                 </td>
               </tr>
