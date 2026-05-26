@@ -44,6 +44,8 @@ function usePrefetchData() {
       utils.event.upcoming.prefetch({ days: 365 });
       utils.review.listRecommendations.prefetch({ limit: 5 });
       utils.review.list.prefetch({ type: "weekly", limit: 5 });
+      utils.dashboard.overview.prefetch();
+      utils.dashboard.rankings.prefetch({ period: "30" });
     }, 500);
     return () => clearTimeout(timer);
   }, [utils]);

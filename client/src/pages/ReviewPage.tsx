@@ -27,6 +27,12 @@ export default function ReviewPage() {
       setSelectedReview(data.review.id);
     },
   });
+  const deleteMutation = trpc.review.delete.useMutation({
+    onSuccess: () => {
+      setSelectedReview(null);
+      reviewsQuery.refetch();
+    },
+  });
   const analyzeMutation = trpc.review.aiAnalyze.useMutation({
     onSuccess: () => detailQuery.refetch(),
   });
@@ -89,9 +95,22 @@ export default function ReviewPage() {
                 selectedReview === r.id ? "border-accent bg-[#EFF6FF]" : "hover:bg-[#F0F4FA]"
               }`}
             >
-              <div className="font-medium text-ink">
-                {r.reviewType === "weekly" ? "周报" : "月报"}
-                {r.scope === "account" ? " (单号)" : " (全矩阵)"}
+              <div className="flex items-center justify-between">
+                <div className="font-medium text-ink">
+                  {r.reviewType === "weekly" ? "周报" : "月报"}
+                  {r.scope === "account" ? " (单号)" : " (全矩阵)"}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("确定要删除这份报告吗？")) {
+                      deleteMutation.mutate({ id: r.id });
+                    }
+                  }}
+                  className="text-[10px] text-muted hover:text-[#991B1B] px-1"
+                >
+                  删除
+                </button>
               </div>
               <div className="mono-data text-muted mt-1">
                 {formatDate(r.periodStart)} – {formatDate(r.periodEnd)}

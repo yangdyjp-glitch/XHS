@@ -319,6 +319,17 @@ export const reviewRouter = router({
       return { analysis, result };
     }),
 
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const [review] = await db.select().from(reviews).where(eq(reviews.id, input.id)).limit(1);
+      if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
+
+      await db.delete(aiAnalysisResults).where(eq(aiAnalysisResults.reviewId, input.id));
+      await db.delete(reviews).where(eq(reviews.id, input.id));
+      return { success: true };
+    }),
+
   listRecommendations: protectedProcedure
     .input(z.object({ limit: z.number().optional() }).optional())
     .query(async ({ input }) => {
