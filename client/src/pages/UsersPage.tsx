@@ -99,9 +99,9 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="eyebrow block mb-1.5">邮箱</label>
+              <label className="eyebrow block mb-1.5">用户名</label>
               <input
-                type="email"
+                type="text"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 className="w-full border border-hairline bg-[#F0F4FA] px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
@@ -158,9 +158,9 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="eyebrow block mb-1.5">邮箱</label>
+              <label className="eyebrow block mb-1.5">用户名</label>
               <input
-                type="email"
+                type="text"
                 value={editing.email}
                 onChange={(e) => setEditing({ ...editing, email: e.target.value })}
                 className="w-full border border-hairline bg-[#F0F4FA] px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
@@ -207,7 +207,7 @@ export default function UsersPage() {
           <thead>
             <tr className="border-b border-ink">
               <th className="px-4 py-3 text-left eyebrow">姓名</th>
-              <th className="px-4 py-3 text-left eyebrow">邮箱</th>
+              <th className="px-4 py-3 text-left eyebrow">用户名</th>
               <th className="px-4 py-3 text-left eyebrow">角色</th>
               <th className="px-4 py-3 text-left eyebrow">状态</th>
               <th className="px-4 py-3 text-left eyebrow">最近登录</th>

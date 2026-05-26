@@ -13,7 +13,7 @@ import { users } from "../../drizzle/schema.js";
 
 export const authRouter = router({
   login: publicProcedure
-    .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+    .input(z.object({ email: z.string().min(1), password: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const [user] = await db
         .select()
@@ -22,12 +22,12 @@ export const authRouter = router({
         .limit(1);
 
       if (!user || !user.isActive) {
-        throw new Error("邮箱或密码错误");
+        throw new Error("用户名或密码错误");
       }
 
       const valid = await verifyPassword(input.password, user.passwordHash);
       if (!valid) {
-        throw new Error("邮箱或密码错误");
+        throw new Error("用户名或密码错误");
       }
 
       await db
@@ -96,7 +96,7 @@ export const authRouter = router({
   createUser: leaderProcedure
     .input(
       z.object({
-        email: z.string().email(),
+        email: z.string().min(1),
         name: z.string().min(1),
         role: z.enum(["teacher", "leader", "observer"]),
         initialPassword: z.string().min(6),
@@ -111,7 +111,7 @@ export const authRouter = router({
         .limit(1);
 
       if (existing.length > 0) {
-        throw new Error("该邮箱已被注册");
+        throw new Error("该用户名已被注册");
       }
 
       const passwordHash = await hashPassword(input.initialPassword);
@@ -156,7 +156,7 @@ export const authRouter = router({
       z.object({
         id: z.number(),
         name: z.string().min(1).optional(),
-        email: z.string().email().optional(),
+        email: z.string().min(1).optional(),
         role: z.enum(["teacher", "leader", "observer"]).optional(),
         mainDirections: z.array(z.string()).optional(),
         isActive: z.boolean().optional(),

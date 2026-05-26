@@ -33,13 +33,13 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="eyebrow block mb-1.5">EMAIL</label>
+              <label className="eyebrow block mb-1.5">USERNAME</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2.5 bg-paper border border-hairline text-ink text-sm focus:outline-none focus:border-accent transition-colors"
-                placeholder="your@email.com"
+                placeholder="请输入用户名"
                 required
               />
             </div>
