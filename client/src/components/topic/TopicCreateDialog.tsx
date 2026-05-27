@@ -24,7 +24,9 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
   const [error, setError] = useState("");
   const typeInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredTypes = (typesQuery.data || []).filter(
+  const PRESET_TYPES = ["产品宣传", "申请服务", "品牌建设", "专业科普", "合格实绩", "热点借势", "生活内容"];
+  const allTypes = Array.from(new Set([...PRESET_TYPES, ...(typesQuery.data || [])]));
+  const filteredTypes = allTypes.filter(
     (t) => !form.topicType || t.toLowerCase().includes(form.topicType.toLowerCase())
   );
 
@@ -63,7 +65,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
       <div className="bg-card w-full max-w-md mx-4 border border-hairline">
         <div className="px-6 py-4 border-b border-hairline flex items-center justify-between">
           <div>
-            <p className="eyebrow mb-0.5">NEW TOPIC</p>
+            <p className="eyebrow mb-0.5">新建</p>
             <h2 className="font-serif font-bold text-ink text-lg">新建选题</h2>
           </div>
           <button onClick={onClose} className="text-muted hover:text-ink text-xl leading-none">&times;</button>
@@ -75,7 +77,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
           )}
 
           <div>
-            <label className="eyebrow block mb-1.5">TITLE *</label>
+            <label className="eyebrow block mb-1.5">标题 *</label>
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -86,7 +88,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="eyebrow block mb-1.5">PUBLISH DATE *</label>
+            <label className="eyebrow block mb-1.5">计划发布日期 *</label>
             <input
               type="date"
               value={form.plannedPublishDate}
@@ -96,7 +98,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
           </div>
 
           <div className="relative">
-            <label className="eyebrow block mb-1.5">TYPE *</label>
+            <label className="eyebrow block mb-1.5">类型 *</label>
             <input
               ref={typeInputRef}
               value={form.topicType}
@@ -128,7 +130,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="eyebrow block mb-1.5">KEYWORDS</label>
+            <label className="eyebrow block mb-1.5">关键词</label>
             <input
               value={form.keywords}
               onChange={(e) => setForm({ ...form, keywords: e.target.value })}

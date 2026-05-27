@@ -20,7 +20,7 @@ async function seed() {
   const [leader] = await db
     .insert(users)
     .values({
-      email: "admin@compass.local",
+      email: "ty.admin",
       name: "矩阵负责人",
       role: "leader",
       passwordHash,
@@ -33,13 +33,13 @@ async function seed() {
 
   // Create teacher users
   const teacherData = [
-    { name: "罗士轩", email: "luo@compass.local", directions: ["经济", "经营", "金融"] },
-    { name: "沈沛青", email: "shen@compass.local", directions: ["社会学", "文化人类学"] },
-    { name: "王瑜", email: "wangyu@compass.local", directions: ["社会学", "政策"] },
-    { name: "吴怡丹", email: "wu@compass.local", directions: ["社会学", "质性研究"] },
-    { name: "范楚楚", email: "fan@compass.local", directions: ["日语教育", "跨文化"] },
-    { name: "王海睿", email: "wanghr@compass.local", directions: ["综合", "入口引流"] },
-    { name: "寻慧洋", email: "xun@compass.local", directions: ["采访", "黑话翻译"] },
+    { name: "罗士轩", email: "ty.luosx", directions: ["经济", "经营", "金融"] },
+    { name: "沈沛青", email: "ty.shenpq", directions: ["社会学", "文化人类学"] },
+    { name: "王瑜", email: "ty.wangy", directions: ["社会学", "政策"] },
+    { name: "吴怡丹", email: "ty.wuyd", directions: ["社会学", "质性研究"] },
+    { name: "范楚楚", email: "ty.fancc", directions: ["日语教育", "跨文化"] },
+    { name: "王海睿", email: "ty.wanghr", directions: ["综合", "入口引流"] },
+    { name: "寻慧洋", email: "ty.xunhy", directions: ["采访", "黑话翻译"] },
   ];
 
   const teachers = [];
@@ -103,7 +103,7 @@ async function seed() {
   console.log(`Created ${luoColumns.length} columns for 罗士轩`);
 
   console.log("\nSeed complete!");
-  console.log("Login: admin@compass.local / compass123");
+  console.log("Login: ty.admin / compass123");
   process.exit(0);
 }
 
