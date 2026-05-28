@@ -30,7 +30,10 @@ export default function TypesPage() {
 
   const handleDelete = (topicType: string, count: number) => {
     if (isBusy) return;
-    if (window.confirm(`确定要删除类型「${topicType}」吗？${count}个选题将被标记为"未分类"。`)) {
+    const msg = count > 0
+      ? `确定要删除类型「${topicType}」吗？${count}个选题将被标记为"未分类"。`
+      : `确定要删除类型「${topicType}」吗？`;
+    if (window.confirm(msg)) {
       deleteMutation.mutate({ topicType });
     }
   };
@@ -99,7 +102,11 @@ export default function TypesPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="status-pill bg-[#DBEAFE] text-accent">{t.count} 个选题</span>
+                  {t.count > 0 ? (
+                    <span className="status-pill bg-[#DBEAFE] text-accent">{t.count} 个选题</span>
+                  ) : (
+                    <span className="status-pill bg-paper-alt text-muted">未使用</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {mergeTarget === t.topicType ? (
@@ -140,7 +147,7 @@ export default function TypesPage() {
                       </button>
                       <button
                         onClick={() => { setMergeTarget(t.topicType); setMergeInto(""); setEditingType(null); }}
-                        disabled={isBusy || types.length < 2}
+                        disabled={isBusy || types.length < 2 || t.count === 0}
                         className="text-xs text-[#6D28D9] hover:text-[#5B21B6] disabled:opacity-50"
                       >
                         合并

@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { topics, accounts, users, notes, metricSnapshots, comments } from "../../drizzle/schema.js";
+import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
 
 export const topicRouter = router({
   list: protectedProcedure
@@ -285,9 +286,9 @@ export const topicRouter = router({
     return result.map((r) => r.topicType);
   }),
 
-  // 获取类型及其选题数量
+  // 获取类型及其选题数量（含预设类型）
   listTypesWithCount: leaderProcedure.query(async () => {
-    const result = await db
+    const dbResult = await db
       .select({
         topicType: topics.topicType,
         count: sql<number>`count(*)::int`,
@@ -295,7 +296,19 @@ export const topicRouter = router({
       .from(topics)
       .groupBy(topics.topicType)
       .orderBy(topics.topicType);
-    return result;
+
+    const dbMap = new Map(dbResult.map((r) => [r.topicType, r.count]));
+
+    // Merge preset types (show with count 0 if unused)
+    for (const preset of PRESET_TOPIC_TYPES) {
+      if (!dbMap.has(preset)) {
+        dbMap.set(preset, 0);
+      }
+    }
+
+    return Array.from(dbMap.entries())
+      .map(([topicType, count]) => ({ topicType, count }))
+      .sort((a, b) => a.topicType.localeCompare(b.topicType, "zh-CN"));
   }),
 
   // 重命名类型（也可用于合并：将A重命名为已有的B）

@@ -69,3 +69,13 @@ export const VALID_STATUS_TRANSITIONS: Record<string, { next: string[]; by: "tea
 };
 
 export const SNAPSHOT_DAYS = [1, 7, 14] as const;
+
+export const PRESET_TOPIC_TYPES = [
+  "产品宣传",
+  "申请服务",
+  "品牌建设",
+  "专业科普",
+  "合格实绩",
+  "热点借势",
+  "生活内容",
+] as const;

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "../../lib/trpc.js";
 import { useAuth } from "../../hooks/useAuth.js";
+import { PRESET_TOPIC_TYPES } from "@shared/enums.js";
 
 interface Props {
   onClose: () => void;
@@ -24,8 +25,7 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
   const [error, setError] = useState("");
   const typeInputRef = useRef<HTMLInputElement>(null);
 
-  const PRESET_TYPES = ["产品宣传", "申请服务", "品牌建设", "专业科普", "合格实绩", "热点借势", "生活内容"];
-  const allTypes = Array.from(new Set([...PRESET_TYPES, ...(typesQuery.data || [])]));
+  const allTypes = Array.from(new Set([...PRESET_TOPIC_TYPES, ...(typesQuery.data || [])]));
   const filteredTypes = allTypes.filter(
     (t) => !form.topicType || t.toLowerCase().includes(form.topicType.toLowerCase())
   );
