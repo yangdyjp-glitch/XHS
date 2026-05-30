@@ -24,6 +24,7 @@ export default function UsersPage() {
     onSuccess: () => { refetch(); setEditing(null); },
   });
   const deleteUser = trpc.auth.deleteUser.useMutation({ onSuccess: () => refetch() });
+  const resetPassword = trpc.auth.resetPassword.useMutation();
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<EditForm | null>(null);
@@ -63,7 +64,14 @@ export default function UsersPage() {
     }
   };
 
-  const isBusy = createUser.isPending || updateUser.isPending || deleteUser.isPending;
+  const handleResetPassword = (id: number, name: string) => {
+    if (resetPassword.isPending) return;
+    if (window.confirm(`确定要将用户「${name}」的密码重置为 compass123 吗？`)) {
+      resetPassword.mutate({ userId: id, newPassword: "compass123" });
+    }
+  };
+
+  const isBusy = createUser.isPending || updateUser.isPending || deleteUser.isPending || resetPassword.isPending;
 
   return (
     <div>
@@ -241,11 +249,18 @@ export default function UsersPage() {
                     编辑
                   </button>
                   <button
+                    onClick={() => handleResetPassword(u.id, u.name)}
+                    disabled={isBusy}
+                    className="text-xs text-[#D97706] hover:text-[#92400E] mr-3 disabled:opacity-50"
+                  >
+                    重置密码
+                  </button>
+                  <button
                     onClick={() => handleDelete(u.id, u.name)}
                     disabled={isBusy}
                     className="text-xs text-muted hover:text-[#991B1B] disabled:opacity-50"
                   >
-                    {deleteUser.isPending ? "删除中..." : "删除"}
+                    删除
                   </button>
                 </td>
               </tr>
