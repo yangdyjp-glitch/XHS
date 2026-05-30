@@ -135,10 +135,12 @@ export const noteRouter = router({
     }),
 
   listWithMetrics: leaderProcedure
-    .input(z.object({ accountId: z.number().optional() }).optional())
+    .input(z.object({ accountId: z.number().optional(), accountIds: z.array(z.number()).optional() }).optional())
     .query(async ({ input }) => {
       const conditions = [eq(notes.status, "live")];
-      if (input?.accountId) {
+      if (input?.accountIds && input.accountIds.length > 0) {
+        conditions.push(inArray(notes.accountId, input.accountIds));
+      } else if (input?.accountId) {
         conditions.push(eq(notes.accountId, input.accountId));
       }
 
