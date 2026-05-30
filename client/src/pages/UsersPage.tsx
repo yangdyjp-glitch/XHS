@@ -7,7 +7,7 @@ type EditForm = {
   id: number;
   name: string;
   email: string;
-  role: "teacher" | "leader" | "observer";
+  role: "teacher" | "editor" | "leader" | "observer";
   isActive: boolean;
 };
 
@@ -31,7 +31,7 @@ export default function UsersPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    role: "teacher" as "teacher" | "leader" | "observer",
+    role: "teacher" as "teacher" | "editor" | "leader" | "observer",
     initialPassword: "",
   });
 

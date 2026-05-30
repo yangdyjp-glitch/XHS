@@ -27,6 +27,7 @@ export const ACCOUNT_LAYER = {
 
 export const USER_ROLE = {
   teacher: "老师",
+  editor: "编辑",
   leader: "负责人",
   observer: "观察者",
 } as const;

@@ -68,7 +68,8 @@ export function useAuth() {
     login,
     logout,
     isLeader: user?.role === "leader",
-    isTeacher: user?.role === "teacher",
+    isTeacher: user?.role === "teacher" || user?.role === "editor",
+    isEditor: user?.role === "editor",
     selectedAccountId,
     setSelectedAccountId,
   };

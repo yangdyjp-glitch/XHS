@@ -98,7 +98,7 @@ export const authRouter = router({
       z.object({
         email: z.string().min(1),
         name: z.string().min(1),
-        role: z.enum(["teacher", "leader", "observer"]),
+        role: z.enum(["teacher", "editor", "leader", "observer"]),
         initialPassword: z.string().min(6),
         mainDirections: z.array(z.string()).optional(),
       })
@@ -157,7 +157,7 @@ export const authRouter = router({
         id: z.number(),
         name: z.string().min(1).optional(),
         email: z.string().min(1).optional(),
-        role: z.enum(["teacher", "leader", "observer"]).optional(),
+        role: z.enum(["teacher", "editor", "leader", "observer"]).optional(),
         mainDirections: z.array(z.string()).optional(),
         isActive: z.boolean().optional(),
       })

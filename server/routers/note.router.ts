@@ -54,7 +54,7 @@ export const noteRouter = router({
   listForDataEntry: protectedProcedure.query(async ({ ctx }) => {
     const conditions = [];
 
-    if (ctx.user.role === "teacher") {
+    if (ctx.user.role === "teacher" || ctx.user.role === "editor") {
       const ownAccounts = await db
         .select({ id: accounts.id })
         .from(accounts)

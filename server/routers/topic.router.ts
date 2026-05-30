@@ -18,7 +18,7 @@ export const topicRouter = router({
     .query(async ({ ctx, input }) => {
       const conditions = [];
 
-      if (ctx.user.role === "teacher") {
+      if (ctx.user.role === "teacher" || ctx.user.role === "editor") {
         const ownAccounts = await db
           .select({ id: accounts.id })
           .from(accounts)
@@ -148,7 +148,7 @@ export const topicRouter = router({
           keywords: input.keywords || [],
           plannedPublishDate: input.plannedPublishDate,
           priority: input.priority || "normal",
-          status: "pending_review",
+          status: ctx.user.role === "editor" ? "writing" : "pending_review",
         })
         .returning();
 
@@ -171,7 +171,7 @@ export const topicRouter = router({
       const [topic] = await db.select().from(topics).where(eq(topics.id, id)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
 
-      if (ctx.user.role === "teacher" && topic.creatorId !== ctx.user.id) {
+      if ((ctx.user.role === "teacher" || ctx.user.role === "editor") && topic.creatorId !== ctx.user.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "只能编辑自己创建的选题" });
       }
 
@@ -201,7 +201,7 @@ export const topicRouter = router({
       if (rule.by === "leader" && ctx.user.role !== "leader") {
         throw new TRPCError({ code: "FORBIDDEN", message: "此操作需要负责人执行" });
       }
-      if (rule.by === "teacher" && topic.creatorId !== ctx.user.id && ctx.user.role !== "leader") {
+      if (rule.by === "teacher" && topic.creatorId !== ctx.user.id && ctx.user.role !== "leader" && ctx.user.role !== "editor") {
         throw new TRPCError({ code: "FORBIDDEN", message: "只能操作自己的选题" });
       }
 
