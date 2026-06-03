@@ -208,15 +208,11 @@ export default function KanbanPage() {
                         )}
                       </div>
                     </div>
-                    <div className="mt-1 flex items-center gap-1 flex-wrap">
+                    <div className="mt-1.5 text-[11px] text-muted font-mono truncate">
+                      {topic.accountName}{topic.creatorName ? ` · ${topic.creatorName}` : ""}
+                    </div>
+                    <div className="mt-1">
                       <span className="status-pill bg-[#DBEAFE] text-accent">{topic.topicType}</span>
-                      {topic.keywords?.slice(0, 2).map((k) => (
-                        <span key={k} className="status-pill bg-[#EDE9FE] text-[#6D28D9]">{k}</span>
-                      ))}
-                      <span className="text-[10px] text-muted font-mono ml-auto">
-                        {topic.accountName}{topic.creatorName ? ` · ${topic.creatorName}` : ""}
-                        {topic.plannedPublishDate ? ` · ${topic.plannedPublishDate}` : ""}
-                      </span>
                     </div>
                   </div>
                 ))}
