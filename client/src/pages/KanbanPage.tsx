@@ -187,32 +187,33 @@ export default function KanbanPage() {
               <div className="h-px bg-ink mb-3" />
 
               {/* Cards */}
-              <div className="flex-1 overflow-y-auto space-y-2">
+              <div className="flex-1 overflow-y-auto space-y-1">
                 {grouped[col.key]?.map((topic) => (
                   <div
                     key={topic.id}
                     onClick={() => navigate(`/topic/${topic.id}`)}
-                    className="card-surface px-3 py-2.5 cursor-pointer hover:bg-[#F0F4FA] transition-colors"
+                    className="card-surface px-2.5 py-1.5 cursor-pointer hover:bg-[#F0F4FA] transition-colors"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-medium text-ink line-clamp-1 leading-snug flex-1">{topic.title}</h3>
-                      <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <h3 className="text-[13px] font-medium text-ink line-clamp-1 leading-tight flex-1">{topic.title}</h3>
+                      <div className="flex items-center gap-0.5 shrink-0">
                         {getActionButton(topic)}
                         {(isLeader || topic.creatorId === user?.id) && (
                           <button
                             onClick={(e) => handleDelete(topic.id, e)}
-                            className="text-[10px] text-muted hover:text-[#991B1B] px-1"
+                            className="text-[10px] text-muted hover:text-[#991B1B] px-0.5"
                           >
                             删除
                           </button>
                         )}
                       </div>
                     </div>
-                    <div className="mt-1.5 text-[11px] text-muted font-mono truncate">
-                      {topic.accountName}{topic.creatorName ? ` · ${topic.creatorName}` : ""}
-                    </div>
-                    <div className="mt-1">
-                      <span className="status-pill bg-[#DBEAFE] text-accent">{topic.topicType}</span>
+                    <div className="mt-0.5 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0 text-[11px] text-muted truncate">
+                        {topic.accountColor && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: topic.accountColor }} />}
+                        <span className="truncate">{topic.accountName}{topic.creatorName ? ` · ${topic.creatorName}` : ""}</span>
+                      </div>
+                      <span className="status-pill bg-[#DBEAFE] text-accent shrink-0" style={{ fontSize: 10, padding: "1px 6px" }}>{topic.topicType}</span>
                     </div>
                   </div>
                 ))}
