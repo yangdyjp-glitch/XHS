@@ -71,6 +71,7 @@ export default function KanbanPage() {
   const [publishTopic, setPublishTopic] = useState<{ id: number; title: string } | null>(null);
   const [filterAccount, setFilterAccount] = useState<number | "">("");
   const [search, setSearch] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
 
   // Teachers filter by their selected account; leaders can filter freely
   const effectiveAccountId = isTeacher ? (selectedAccountId || undefined) : (filterAccount || undefined);
@@ -99,11 +100,16 @@ export default function KanbanPage() {
     for (const col of KANBAN_COLUMNS) map[col.key] = [];
     if (topicsQuery.data) {
       for (const t of topicsQuery.data) {
+        if (filterMonth && t.plannedPublishDate) {
+          if (!t.plannedPublishDate.startsWith(filterMonth)) continue;
+        } else if (filterMonth && !t.plannedPublishDate) {
+          continue;
+        }
         if (map[t.status]) map[t.status].push(t);
       }
     }
     return map;
-  }, [topicsQuery.data]);
+  }, [topicsQuery.data, filterMonth]);
 
   const handleStatusChange = (topicId: number, newStatus: string) => {
     statusMutation.mutate({ id: topicId, newStatus });
@@ -153,6 +159,12 @@ export default function KanbanPage() {
             <h1 className="editorial-heading text-[28px] leading-tight">选题看板</h1>
           </div>
           <div className="flex items-center gap-3">
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
+            />
             <input
               type="text"
               placeholder="搜索选题..."

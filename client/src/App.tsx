@@ -19,6 +19,7 @@ const AccountsPage = lazy(() => import("./pages/AccountsPage.js"));
 const UsersPage = lazy(() => import("./pages/UsersPage.js"));
 const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 const TypesPage = lazy(() => import("./pages/TypesPage.js"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage.js"));
 
 // Prefetch page chunks after initial render so they're cached for instant navigation
 function usePrefetchRoutes() {
@@ -82,6 +83,7 @@ function AppRoutes() {
       <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
         <Switch>
           <Route path="/" component={KanbanPage} />
+          <Route path="/calendar" component={CalendarPage} />
           <Route path="/topic/:id" component={TopicDetailPage} />
           <Route path="/data-entry" component={DataEntryPage} />
           <Route path="/data-overview" component={DataOverviewPage} />
