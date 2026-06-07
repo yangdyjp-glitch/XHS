@@ -44,7 +44,7 @@ export default function RecommendationPage() {
   const [showBannedWords, setShowBannedWords] = useState(false);
   const [eventForm, setEventForm] = useState({ title: "", eventDate: "", category: "other" });
   const [localRecs, setLocalRecs] = useState<any[] | null>(null);
-  const [refreshingTitle, setRefreshingTitle] = useState<string | null>(null);
+  const [refreshingTitles, setRefreshingTitles] = useState<Set<string>>(new Set());
   const [useSeed, setUseSeed] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
@@ -81,7 +81,15 @@ export default function RecommendationPage() {
   };
 
   const handleRefreshRec = (rec: any) => {
-    setRefreshingTitle(rec.title);
+    if (refreshingTitles.has(rec.title)) return;
+    const seedTitle = rec.title;
+    setRefreshingTitles((prev) => new Set(prev).add(seedTitle));
+    const stopRefreshing = () =>
+      setRefreshingTitles((prev) => {
+        const next = new Set(prev);
+        next.delete(seedTitle);
+        return next;
+      });
     refreshRecMutation.mutate({
       seed: { title: rec.title, topicType: rec.topicType, keywords: rec.keywords || [], reason: rec.reason, priority: rec.priority || "normal" },
       avoidTitles: (localRecs || []).map((r) => r.title).filter((t) => t !== rec.title),
@@ -89,10 +97,10 @@ export default function RecommendationPage() {
       accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
     }, {
       onSuccess: (data) => {
-        setLocalRecs((prev) => (prev || []).map((r) => (r.title === rec.title ? data.recommendation : r)));
-        setRefreshingTitle(null);
+        setLocalRecs((prev) => (prev || []).map((r) => (r.title === seedTitle ? data.recommendation : r)));
+        stopRefreshing();
       },
-      onError: () => setRefreshingTitle(null),
+      onError: stopRefreshing,
     });
   };
 
@@ -309,9 +317,9 @@ export default function RecommendationPage() {
                   </div>
                   <div className="shrink-0 flex flex-col gap-1.5">
                     <button onClick={() => handleRefreshRec(rec)}
-                      disabled={refreshingTitle === rec.title}
+                      disabled={refreshingTitles.has(rec.title)}
                       className="px-3 py-1.5 text-sm rounded-full border border-hairline text-ink-soft hover:bg-paper-alt disabled:opacity-50 transition-colors">
-                      {refreshingTitle === rec.title ? "刷新中..." : "刷新"}
+                      {refreshingTitles.has(rec.title) ? "刷新中..." : "刷新"}
                     </button>
                     {!isLeader && (
                       <button onClick={() => setUseSeed(rec)}
