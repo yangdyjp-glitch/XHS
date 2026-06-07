@@ -303,9 +303,14 @@ export default function RecommendationPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
                       <h3 className="font-serif font-bold text-ink">{rec.title}</h3>
-                      <span className={`status-pill ${PRIORITY_STYLE[rec.priority] || PRIORITY_STYLE.normal}`}>
-                        {PRIORITY_LABEL[rec.priority] || "NORMAL"}
-                      </span>
+                      {(() => {
+                        const pr = String(rec.priority || "normal").toLowerCase();
+                        return (
+                          <span className={`status-pill ${PRIORITY_STYLE[pr] || PRIORITY_STYLE.normal}`}>
+                            {PRIORITY_LABEL[pr] || "普通"}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="status-pill bg-[#DBEAFE] text-accent">{rec.topicType}</span>
