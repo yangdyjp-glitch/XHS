@@ -14,7 +14,7 @@ const KANBAN_COLUMNS = [
 ];
 
 function AccountFilter({ accounts, selected, onChange }: {
-  accounts?: { id: number; accountName: string }[];
+  accounts?: { id: number; accountName: string; mainColor?: string | null }[];
   selected: number[];
   onChange: (ids: number[]) => void;
 }) {
@@ -67,6 +67,7 @@ function AccountFilter({ accounts, selected, onChange }: {
               <span className={`w-3.5 h-3.5 border rounded-sm flex items-center justify-center shrink-0 ${selected.includes(a.id) ? "bg-accent border-accent" : "border-hairline"}`}>
                 {selected.includes(a.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
               </span>
+              {a.mainColor && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.mainColor }} />}
               <span className="truncate">{a.accountName}</span>
             </div>
           ))}
