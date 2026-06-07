@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import { BANNED_WORDS } from "@shared/bannedWords.js";
+import TopicCreateDialog from "../components/topic/TopicCreateDialog.js";
 
 const PRIORITY_LABEL: Record<string, string> = { high: "高", normal: "普通", low: "低" };
 const PRIORITY_STYLE: Record<string, string> = {
@@ -37,28 +38,40 @@ const CATEGORY_STYLE: Record<string, string> = {
 
 export default function RecommendationPage() {
   const { isLeader, isTeacher, selectedAccountId } = useAuth();
-  const [creating, setCreating] = useState<number | null>(null);
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [showBannedWords, setShowBannedWords] = useState(false);
   const [eventForm, setEventForm] = useState({ title: "", eventDate: "", category: "other" });
+  const [localRecs, setLocalRecs] = useState<any[] | null>(null);
+  const [refreshingTitle, setRefreshingTitle] = useState<string | null>(null);
+  const [useSeed, setUseSeed] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
   const recommendMutation = trpc.review.aiRecommend.useMutation();
   const pastQuery = trpc.review.listRecommendations.useQuery({ limit: 5 }, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.review.list.useQuery({ limit: 10 }, { refetchOnWindowFocus: false, staleTime: 0 });
   const upcomingQuery = trpc.event.upcoming.useQuery({ days: 365 }, { refetchOnWindowFocus: false });
+  const rejectedTitlesQuery = trpc.review.listRejectedTitles.useQuery(undefined, { refetchOnWindowFocus: false });
   const createEventMutation = trpc.event.create.useMutation({
     onSuccess: () => { setShowAddEvent(false); setEventForm({ title: "", eventDate: "", category: "other" }); utils.event.upcoming.invalidate(); },
   });
   const deleteEventMutation = trpc.event.delete.useMutation({ onSuccess: () => utils.event.upcoming.invalidate() });
-  const createTopicMutation = trpc.topic.create.useMutation({ onSuccess: () => setCreating(null) });
+  const refreshRecMutation = trpc.review.refreshRecommendation.useMutation();
+  const rejectRecMutation = trpc.review.rejectRecommendation.useMutation();
 
   const result = recommendMutation.data?.result;
   const latestPast = pastQuery.data?.[0];
   const latestPastResult = latestPast?.resultJson as any;
   const displayResult = result || latestPastResult;
+
+  // 推荐列表同步到本地可编辑副本（刷新/删除在副本上操作）
+  useEffect(() => {
+    setLocalRecs(displayResult?.recommendations ?? null);
+  }, [displayResult]);
+
+  const rejectedSet = new Set(rejectedTitlesQuery.data || []);
+  const visibleRecs = (localRecs || []).filter((r) => !rejectedSet.has(r.title));
 
   const handleGenerate = () => {
     recommendMutation.mutate({
@@ -67,13 +80,32 @@ export default function RecommendationPage() {
     });
   };
 
-  const handleCreateTopic = (rec: any, index: number) => {
-    setCreating(index);
-    createTopicMutation.mutate({
-      title: rec.title, topicType: rec.topicType, keywords: rec.keywords,
-      plannedPublishDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
-      priority: rec.priority || "normal",
-      accountId: selectedAccountId || undefined,
+  const handleRefreshRec = (rec: any) => {
+    setRefreshingTitle(rec.title);
+    refreshRecMutation.mutate({
+      seed: { title: rec.title, topicType: rec.topicType, keywords: rec.keywords || [], reason: rec.reason, priority: rec.priority || "normal" },
+      avoidTitles: (localRecs || []).map((r) => r.title).filter((t) => t !== rec.title),
+      reviewId: selectedReviewId || undefined,
+      accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
+    }, {
+      onSuccess: (data) => {
+        setLocalRecs((prev) => (prev || []).map((r) => (r.title === rec.title ? data.recommendation : r)));
+        setRefreshingTitle(null);
+      },
+      onError: () => setRefreshingTitle(null),
+    });
+  };
+
+  const handleRejectRec = (rec: any) => {
+    if (!window.confirm("删除该推荐？之后 AI 将不再生成与之类似的选题。")) return;
+    rejectRecMutation.mutate({
+      title: rec.title, topicType: rec.topicType, keywords: rec.keywords || [], reason: rec.reason,
+      accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
+    }, {
+      onSuccess: () => {
+        setLocalRecs((prev) => (prev || []).filter((r) => r.title !== rec.title));
+        utils.review.listRejectedTitles.invalidate();
+      },
     });
   };
 
@@ -256,8 +288,8 @@ export default function RecommendationPage() {
           )}
 
           <div className="space-y-3">
-            {displayResult.recommendations?.map((rec: any, i: number) => (
-              <div key={i} className="card-surface p-5">
+            {visibleRecs.map((rec: any, i: number) => (
+              <div key={`${rec.title}-${i}`} className="card-surface p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -275,13 +307,24 @@ export default function RecommendationPage() {
                     </div>
                     <p className="text-sm text-ink-soft">{rec.reason}</p>
                   </div>
-                  {!isLeader && (
-                    <button onClick={() => handleCreateTopic(rec, i)}
-                      disabled={creating === i || createTopicMutation.isPending}
-                      className="shrink-0 bg-ink text-card px-3 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
-                      {creating === i && createTopicMutation.isPending ? "创建中..." : "创建选题"}
+                  <div className="shrink-0 flex flex-col gap-1.5">
+                    <button onClick={() => handleRefreshRec(rec)}
+                      disabled={refreshingTitle === rec.title}
+                      className="px-3 py-1.5 text-sm rounded-full border border-hairline text-ink-soft hover:bg-paper-alt disabled:opacity-50 transition-colors">
+                      {refreshingTitle === rec.title ? "刷新中..." : "刷新"}
                     </button>
-                  )}
+                    {!isLeader && (
+                      <button onClick={() => setUseSeed(rec)}
+                        className="px-3 py-1.5 text-sm rounded-full bg-ink text-card hover:bg-ink-soft transition-colors">
+                        使用
+                      </button>
+                    )}
+                    <button onClick={() => handleRejectRec(rec)}
+                      disabled={rejectRecMutation.isPending}
+                      className="px-3 py-1.5 text-sm rounded-full border border-hairline text-[#991B1B] hover:bg-[#FEE2E2] disabled:opacity-50 transition-colors">
+                      删除
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -300,6 +343,16 @@ export default function RecommendationPage() {
           <p className="text-muted font-serif text-lg italic">基于复盘数据和近期事件节点，AI 为你推荐下期选题方向</p>
           <p className="mono-data text-muted mt-2">点击「AI 生成推荐」开始</p>
         </div>
+      )}
+
+      {useSeed && (
+        <TopicCreateDialog
+          initialTitle={useSeed.title}
+          initialTopicType={useSeed.topicType}
+          initialKeywords={useSeed.keywords || []}
+          onClose={() => setUseSeed(null)}
+          onCreated={() => setUseSeed(null)}
+        />
       )}
     </div>
   );

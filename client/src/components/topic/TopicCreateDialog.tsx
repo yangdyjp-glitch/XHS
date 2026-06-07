@@ -7,9 +7,12 @@ import { findBannedWords } from "@shared/bannedWords.js";
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  initialTitle?: string;
+  initialTopicType?: string;
+  initialKeywords?: string[];
 }
 
-export default function TopicCreateDialog({ onClose, onCreated }: Props) {
+export default function TopicCreateDialog({ onClose, onCreated, initialTitle, initialTopicType, initialKeywords }: Props) {
   const { selectedAccountId } = useAuth();
   const typesQuery = trpc.topic.listTypes.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -17,10 +20,10 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
   const createMutation = trpc.topic.create.useMutation({ onSuccess: onCreated });
 
   const [form, setForm] = useState({
-    title: "",
+    title: initialTitle || "",
     plannedPublishDate: "",
-    topicType: "",
-    keywords: "",
+    topicType: initialTopicType || "",
+    keywords: (initialKeywords || []).join(", "),
   });
   const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
   const [error, setError] = useState("");

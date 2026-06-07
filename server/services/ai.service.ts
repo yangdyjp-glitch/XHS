@@ -104,7 +104,20 @@ export interface UpcomingEvent {
   category: string;
 }
 
-export async function generateRecommendations(data: ReviewInputData, analysisResult?: AnalysisResult, upcomingEvents?: UpcomingEvent[]): Promise<{ result: RecommendationResult; tokensUsed: number; prompt: string }> {
+export interface RejectedRec {
+  title: string;
+  topicType?: string | null;
+  keywords?: string[] | null;
+}
+
+function rejectedBlock(rejected?: RejectedRec[]): string {
+  if (!rejected || rejected.length === 0) return "";
+  return `## 已否决方向（严禁再次推荐，也不要推荐与之高度相似/换汤不换药的选题）
+${rejected.map(r => `- ${r.title}${r.topicType ? `（${r.topicType}）` : ""}${r.keywords && r.keywords.length ? ` 关键词: ${r.keywords.join("/")}` : ""}`).join("\n")}
+`;
+}
+
+export async function generateRecommendations(data: ReviewInputData, analysisResult?: AnalysisResult, upcomingEvents?: UpcomingEvent[], rejected?: RejectedRec[]): Promise<{ result: RecommendationResult; tokensUsed: number; prompt: string }> {
   const prompt = `你是小红书内容运营策略专家，专注于日本留学领域。根据以下复盘数据、分析结果和近期重要事件节点，为下一周期推荐选题方向。
 
 ## 历史数据概览
@@ -132,6 +145,7 @@ ${BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
 以下词语为平台禁用词，所有选题标题、关键词、推荐理由和策略建议中都**绝对不得出现**，也不要使用其近义表达规避：
 ${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
 
+${rejectedBlock(rejected)}
 请推荐5-8个下期选题方向。**务必结合近期事件节点，提前布局热点内容**。以JSON格式输出：
 {
   "recommendations": [
@@ -178,5 +192,78 @@ ${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
   } catch (e: any) {
     if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
     throw new Error(`AI推荐生成失败: ${e.message || "未知错误"}`);
+  }
+}
+
+export type SingleRecommendation = RecommendationResult["recommendations"][number];
+
+// 针对单条推荐重新生成一个「类似但不同」的替代推荐
+export async function regenerateOneRecommendation(
+  data: ReviewInputData,
+  seed: SingleRecommendation,
+  upcomingEvents?: UpcomingEvent[],
+  rejected?: RejectedRec[],
+  avoidTitles?: string[]
+): Promise<{ recommendation: SingleRecommendation; tokensUsed: number; prompt: string }> {
+  const prompt = `你是小红书内容运营策略专家，专注于日本留学领域。下面这条选题推荐用户希望「换一个类似方向但更好/不同角度」的新建议。
+
+## 历史数据概览
+周期: ${data.period.start} 至 ${data.period.end}，发布${data.totals.noteCount}篇笔记
+
+## 当前这条推荐（请基于它的方向，给出一个相似但不重复的新选题）
+- 标题: ${seed.title}
+- 类型: ${seed.topicType}
+- 关键词: ${(seed.keywords || []).join("/")}
+- 理由: ${seed.reason}
+
+${upcomingEvents && upcomingEvents.length > 0 ? `## 近期重要事件节点（可结合）
+${upcomingEvents.map(e => `- ${e.eventDate} ${e.title}（${e.category}）`).join("\n")}` : ""}
+
+${BANNED_WORDS.length > 0 ? `## 禁用词（标题/关键词/理由中绝对不得出现）
+${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
+
+${rejectedBlock(rejected)}
+${avoidTitles && avoidTitles.length > 0 ? `## 当前已有的其它推荐（不要与这些重复）
+${avoidTitles.map(t => `- ${t}`).join("\n")}` : ""}
+
+请只输出**一条**新的选题推荐，保持与原方向主题相关但角度/切入点不同。以JSON格式输出：
+{
+  "title": "建议的选题标题",
+  "topicType": "选题类型",
+  "keywords": ["关键词1", "关键词2"],
+  "reason": "推荐理由",
+  "priority": "high/normal/low"
+}
+
+只输出JSON，不要其他文字。`;
+
+  try {
+    const client = getClient();
+    const response = await client.messages.create({
+      model: "claude-opus-4-7",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed: SingleRecommendation = jsonMatch
+      ? JSON.parse(jsonMatch[0])
+      : { title: seed.title, topicType: seed.topicType, keywords: seed.keywords, reason: text, priority: seed.priority };
+
+    const scrub = (s: string) => BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    const recommendation: SingleRecommendation = {
+      ...parsed,
+      title: scrub(parsed.title),
+      reason: scrub(parsed.reason),
+      keywords: (parsed.keywords || []).map(scrub),
+    };
+
+    return { recommendation, tokensUsed, prompt };
+  } catch (e: any) {
+    if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
+    throw new Error(`AI推荐刷新失败: ${e.message || "未知错误"}`);
   }
 }

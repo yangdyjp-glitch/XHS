@@ -158,6 +158,20 @@ export const aiAnalysisResults = pgTable("ai_analysis_results", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// 被否决的推荐选题：记录后，AI 不再生成与之类似的推荐
+export const rejectedRecommendations = pgTable("rejected_recommendations", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  topicType: varchar("topic_type", { length: 30 }),
+  keywords: text("keywords").array(),
+  reason: text("reason"),
+  accountId: integer("account_id").references(() => accounts.id),
+  createdBy: integer("created_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const comments = pgTable("comments", {
   id: serial("id").primaryKey(),
   topicId: integer("topic_id")

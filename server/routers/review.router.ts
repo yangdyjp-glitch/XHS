@@ -11,12 +11,25 @@ import {
   metricSnapshots,
   aiAnalysisResults,
   calendarEvents,
+  rejectedRecommendations,
 } from "../../drizzle/schema.js";
 import {
   analyzePerformance,
   generateRecommendations,
+  regenerateOneRecommendation,
   type ReviewInputData,
+  type RejectedRec,
 } from "../services/ai.service.js";
+
+// 读取被否决的推荐（用于注入 prompt 排除 + 前端过滤）
+async function getRejected(): Promise<RejectedRec[]> {
+  const rows = await db
+    .select({ title: rejectedRecommendations.title, topicType: rejectedRecommendations.topicType, keywords: rejectedRecommendations.keywords })
+    .from(rejectedRecommendations)
+    .orderBy(desc(rejectedRecommendations.createdAt))
+    .limit(200);
+  return rows.map((r) => ({ title: r.title, topicType: r.topicType, keywords: r.keywords as string[] | null }));
+}
 
 async function aggregateData(periodStart: string, periodEnd: string, accountId?: number): Promise<ReviewInputData> {
   const accountConditions = accountId ? [eq(accounts.id, accountId)] : [];
@@ -295,7 +308,8 @@ export const reviewRouter = router({
         .where(and(gte(calendarEvents.eventDate, today), lte(calendarEvents.eventDate, futureStr)))
         .orderBy(asc(calendarEvents.eventDate));
 
-      const { result, tokensUsed, prompt } = await generateRecommendations(data, analysisResult, upcomingEvents);
+      const rejected = await getRejected();
+      const { result, tokensUsed, prompt } = await generateRecommendations(data, analysisResult, upcomingEvents, rejected);
 
       const [analysis] = await db
         .insert(aiAnalysisResults)
@@ -339,5 +353,87 @@ export const reviewRouter = router({
         .where(eq(aiAnalysisResults.analysisType, "recommendation"))
         .orderBy(desc(aiAnalysisResults.createdAt))
         .limit(input?.limit || 10);
+    }),
+
+  // 被否决推荐标题列表（前端用于过滤展示）
+  listRejectedTitles: protectedProcedure.query(async () => {
+    const rows = await db
+      .select({ title: rejectedRecommendations.title })
+      .from(rejectedRecommendations);
+    return rows.map((r) => r.title);
+  }),
+
+  // 否决一条推荐：记录后 AI 不再生成类似推荐
+  rejectRecommendation: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1),
+        topicType: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+        reason: z.string().optional(),
+        accountId: z.number().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await db.insert(rejectedRecommendations).values({
+        title: input.title,
+        topicType: input.topicType || null,
+        keywords: input.keywords || [],
+        reason: input.reason || null,
+        accountId: input.accountId || null,
+        createdBy: ctx.user.id,
+      });
+      return { success: true };
+    }),
+
+  // 刷新一条推荐：重新生成一个类似但不同的替代推荐
+  refreshRecommendation: protectedProcedure
+    .input(
+      z.object({
+        seed: z.object({
+          title: z.string(),
+          topicType: z.string(),
+          keywords: z.array(z.string()),
+          reason: z.string(),
+          priority: z.string().optional(),
+        }),
+        avoidTitles: z.array(z.string()).optional(),
+        reviewId: z.number().optional(),
+        periodStart: z.string().optional(),
+        periodEnd: z.string().optional(),
+        accountId: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      let data: ReviewInputData;
+      if (input.reviewId) {
+        const [review] = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).limit(1);
+        if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
+        data = await aggregateData(review.periodStart, review.periodEnd, review.accountId || undefined);
+      } else {
+        const range = getWeekRange(1);
+        data = await aggregateData(input.periodStart || range.start, input.periodEnd || range.end, input.accountId);
+      }
+
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      const future = new Date(now);
+      future.setDate(now.getDate() + 60);
+      const futureStr = future.toISOString().split("T")[0];
+      const upcomingEvents = await db
+        .select({ title: calendarEvents.title, eventDate: calendarEvents.eventDate, category: calendarEvents.category })
+        .from(calendarEvents)
+        .where(and(gte(calendarEvents.eventDate, today), lte(calendarEvents.eventDate, futureStr)))
+        .orderBy(asc(calendarEvents.eventDate));
+
+      const rejected = await getRejected();
+      const { recommendation } = await regenerateOneRecommendation(
+        data,
+        { ...input.seed, priority: input.seed.priority || "normal" },
+        upcomingEvents,
+        rejected,
+        input.avoidTitles
+      );
+      return { recommendation };
     }),
 });
