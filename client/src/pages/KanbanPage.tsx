@@ -13,14 +13,13 @@ const KANBAN_COLUMNS = [
   { key: "published", label: "已发布", eyebrow: "已发布" },
 ];
 
-function AccountFilter({ accounts, value, onChange }: {
+function AccountFilter({ accounts, selected, onChange }: {
   accounts?: { id: number; accountName: string }[];
-  value: number | "";
-  onChange: (v: number | "") => void;
+  selected: number[];
+  onChange: (ids: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const label = value ? accounts?.find((a) => a.id === value)?.accountName ?? "全部账号" : "全部账号";
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -30,32 +29,45 @@ function AccountFilter({ accounts, value, onChange }: {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const label = selected.length === 0
+    ? "全部账号"
+    : selected.length === 1
+      ? accounts?.find((a) => a.id === selected[0])?.accountName || "1 个账号"
+      : `已选 ${selected.length} 个账号`;
+
+  const toggle = (id: number) => {
+    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="border border-hairline bg-card px-3 py-2 text-sm flex items-center gap-2 hover:border-accent transition-colors w-[16.5rem] justify-between"
       >
-        <span>{label}</span>
-        <svg className="w-3 h-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span className={selected.length > 0 ? "text-ink" : "text-muted"}>{label}</span>
+        <svg className={`w-3 h-3 text-muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
       {open && (
         <div className="absolute top-full right-0 mt-1 bg-card border border-hairline shadow-lg z-20 min-w-[16.5rem] max-h-60 overflow-y-auto">
           <div
-            onClick={() => { onChange(""); setOpen(false); }}
-            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${value === "" ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
+            onClick={() => { onChange([]); setOpen(false); }}
+            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${selected.length === 0 ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
           >
             全部账号
           </div>
           {accounts?.map((a) => (
             <div
               key={a.id}
-              onClick={() => { onChange(a.id); setOpen(false); }}
-              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${value === a.id ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
+              onClick={() => toggle(a.id)}
+              className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${selected.includes(a.id) ? "bg-[#EFF6FF] text-accent font-medium" : "hover:bg-[#F0F4FA]"}`}
             >
-              {a.accountName}
+              <span className={`w-3.5 h-3.5 border rounded-sm flex items-center justify-center shrink-0 ${selected.includes(a.id) ? "bg-accent border-accent" : "border-hairline"}`}>
+                {selected.includes(a.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+              </span>
+              <span className="truncate">{a.accountName}</span>
             </div>
           ))}
         </div>
@@ -69,15 +81,19 @@ export default function KanbanPage() {
   const [, navigate] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [publishTopic, setPublishTopic] = useState<{ id: number; title: string } | null>(null);
-  const [filterAccount, setFilterAccount] = useState<number | "">("");
+  const [filterAccounts, setFilterAccounts] = useState<number[]>([]);
   const [search, setSearch] = useState("");
-  const [filterMonth, setFilterMonth] = useState("");
-
-  // Teachers filter by their selected account; leaders can filter freely
-  const effectiveAccountId = isTeacher ? (selectedAccountId || undefined) : (filterAccount || undefined);
+  const [filterMonth, setFilterMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   const topicsQuery = trpc.topic.list.useQuery(
-    { accountId: effectiveAccountId, search: search || undefined },
+    {
+      accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
+      accountIds: !isTeacher && filterAccounts.length > 0 ? filterAccounts : undefined,
+      search: search || undefined,
+    },
     { refetchOnWindowFocus: false }
   );
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -120,7 +136,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "approved"); }}
-          className="text-xs bg-ink text-card px-3 py-1 rounded-full hover:bg-ink-soft"
+          className="text-xs bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft"
         >
           通过
         </button>
@@ -130,7 +146,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "writing"); }}
-          className="text-xs bg-[#6D28D9] text-white px-3 py-1 rounded-full hover:bg-[#5B21B6]"
+          className="text-xs bg-[#6D28D9] text-white px-2 py-0.5 rounded-full hover:bg-[#5B21B6]"
         >
           开始写作
         </button>
@@ -140,7 +156,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); setPublishTopic({ id: topic.id, title: topic.title }); }}
-          className="text-xs bg-[#166534] text-white px-3 py-1 rounded-full hover:bg-[#15803D]"
+          className="text-xs bg-[#166534] text-white px-2 py-0.5 rounded-full hover:bg-[#15803D]"
         >
           发布
         </button>
@@ -172,7 +188,7 @@ export default function KanbanPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="border border-hairline bg-card px-3 py-1.5 text-sm w-40 focus:outline-none focus:border-accent transition-colors"
             />
-            {isLeader && <AccountFilter accounts={accountsQuery.data} value={filterAccount} onChange={setFilterAccount} />}
+            {isLeader && <AccountFilter accounts={accountsQuery.data} selected={filterAccounts} onChange={setFilterAccounts} />}
             {!isLeader && (
               <button
                 onClick={() => setShowCreate(true)}

@@ -11,6 +11,7 @@ export const topicRouter = router({
     .input(
       z.object({
         accountId: z.number().optional(),
+        accountIds: z.array(z.number()).optional(),
         status: z.string().optional(),
         search: z.string().optional(),
       }).optional()
@@ -32,6 +33,7 @@ export const topicRouter = router({
       }
 
       if (input?.accountId) conditions.push(eq(topics.accountId, input.accountId));
+      if (input?.accountIds && input.accountIds.length > 0) conditions.push(inArray(topics.accountId, input.accountIds));
       if (input?.status) conditions.push(eq(topics.status, input.status));
       if (input?.search) {
         const pattern = `%${input.search}%`;
@@ -175,6 +177,14 @@ export const topicRouter = router({
 
       if ((ctx.user.role === "teacher" || ctx.user.role === "editor") && topic.creatorId !== ctx.user.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "只能编辑自己创建的选题" });
+      }
+
+      if (
+        (topic.status === "pending_review" || topic.status === "writing") &&
+        updates.plannedPublishDate !== undefined &&
+        !updates.plannedPublishDate
+      ) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "待审批/写作中的选题必须填写计划发布时间" });
       }
 
       await db.update(topics).set({ ...updates, updatedAt: new Date() }).where(eq(topics.id, id));
