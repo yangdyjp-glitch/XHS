@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { BANNED_WORDS } from "../../shared/bannedWords.js";
+import { STRICT_BANNED_WORDS } from "../../shared/bannedWords.js";
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -141,9 +141,9 @@ ${analysisResult ? `## 上期复盘分析
 ${upcomingEvents && upcomingEvents.length > 0 ? `## 近期重要事件节点（请重点结合这些时间节点推荐蹭热点选题）
 ${upcomingEvents.map(e => `- ${e.eventDate} ${e.title}（${e.category}）`).join("\n")}` : ""}
 
-${BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
+${STRICT_BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
 以下词语为平台禁用词，所有选题标题、关键词、推荐理由和策略建议中都**绝对不得出现**，也不要使用其近义表达规避：
-${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
+${STRICT_BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
 
 ${rejectedBlock(rejected)}
 请推荐5-8个下期选题方向。**务必结合近期事件节点，提前布局热点内容**。以JSON格式输出：
@@ -179,7 +179,7 @@ ${rejectedBlock(rejected)}
       : { recommendations: [], strategy: text };
 
     // 兜底：万一模型仍输出禁用词，从策略与推荐文本中剔除
-    const scrub = (s: string) => BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
     result.strategy = scrub(result.strategy);
     result.recommendations = (result.recommendations || []).map((r) => ({
       ...r,
@@ -219,8 +219,8 @@ export async function regenerateOneRecommendation(
 ${upcomingEvents && upcomingEvents.length > 0 ? `## 近期重要事件节点（可结合）
 ${upcomingEvents.map(e => `- ${e.eventDate} ${e.title}（${e.category}）`).join("\n")}` : ""}
 
-${BANNED_WORDS.length > 0 ? `## 禁用词（标题/关键词/理由中绝对不得出现）
-${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
+${STRICT_BANNED_WORDS.length > 0 ? `## 禁用词（标题/关键词/理由中绝对不得出现）
+${STRICT_BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
 
 ${rejectedBlock(rejected)}
 ${avoidTitles && avoidTitles.length > 0 ? `## 当前已有的其它推荐（不要与这些重复）
@@ -253,7 +253,7 @@ ${avoidTitles.map(t => `- ${t}`).join("\n")}` : ""}
       ? JSON.parse(jsonMatch[0])
       : { title: seed.title, topicType: seed.topicType, keywords: seed.keywords, reason: text, priority: seed.priority };
 
-    const scrub = (s: string) => BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
     const recommendation: SingleRecommendation = {
       ...parsed,
       title: scrub(parsed.title),

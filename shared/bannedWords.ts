@@ -69,6 +69,16 @@ export const BANNED_WORDS: string[] = [
   "快手", "微博", "闲鱼", "得物", "唯品会", "1688", "人民币图样",
 ];
 
+// 高误伤通用词：这些词作为子串极易命中正常文案（如"最"→最近、"第一"→第一天、
+// "一流"→一流大学、"安全"→安全性、"全面"→全面提升、"著名"→著名大学）。
+// 仅用于「软提示」，不参与对 AI 输出的强制剔除，避免把正常词破坏。
+export const SOFT_ONLY_WORDS: string[] = [
+  "最", "第一", "一天", "一流", "安全", "全面", "著名", "精确", "正品", "高档", "国门",
+];
+
+// 真正的营销 / 平台禁用词：用于对 AI 生成文本的兜底剔除（排除上面的高误伤通用词）
+export const STRICT_BANNED_WORDS: string[] = BANNED_WORDS.filter((w) => !SOFT_ONLY_WORDS.includes(w));
+
 // 返回 text 中命中的禁用词（去重，按出现顺序）
 export function findBannedWords(text: string): string[] {
   if (!text) return [];
