@@ -33,6 +33,7 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
   const filteredTypes = allTypes.filter(
     (t) => !form.topicType || t.toLowerCase().includes(form.topicType.toLowerCase())
   );
+  const bannedHits = findBannedWords(form.title);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -50,8 +51,6 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
     if (createMutation.isPending) return;
 
     if (!form.title.trim()) { setError("请填写标题"); return; }
-    const hits = findBannedWords(form.title);
-    if (hits.length > 0) { setError(`标题包含禁用词：${hits.join("、")}，请修改后再提交`); return; }
     if (!form.plannedPublishDate) { setError("请选择计划发布时间"); return; }
     if (!form.topicType.trim()) { setError("请填写类型"); return; }
 
@@ -91,6 +90,11 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
               placeholder="输入选题标题"
               autoFocus
             />
+            {bannedHits.length > 0 && (
+              <p className="mt-1.5 text-xs text-[#92400E] bg-[#FEF3C7] px-2 py-1.5 rounded">
+                提示：标题可能含禁用词 <span className="font-medium">{bannedHits.join("、")}</span>，建议检查后再提交（不强制）
+              </p>
+            )}
           </div>
 
           <div>

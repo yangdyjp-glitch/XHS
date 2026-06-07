@@ -5,7 +5,6 @@ import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { topics, accounts, users, notes, metricSnapshots, comments } from "../../drizzle/schema.js";
 import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
-import { findBannedWords } from "../../shared/bannedWords.js";
 
 export const topicRouter = router({
   list: protectedProcedure
@@ -116,11 +115,6 @@ export const topicRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const bannedHits = findBannedWords(input.title);
-      if (bannedHits.length > 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `标题包含禁用词：${bannedHits.join("、")}，请修改后再提交` });
-      }
-
       let accountId = input.accountId;
 
       if (!accountId) {
