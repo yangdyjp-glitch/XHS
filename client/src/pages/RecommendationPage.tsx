@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 import Dropdown from "../components/ui/Dropdown.js";
+import { BANNED_WORDS } from "@shared/bannedWords.js";
 
 const PRIORITY_LABEL: Record<string, string> = { high: "高", normal: "普通", low: "低" };
 const PRIORITY_STYLE: Record<string, string> = {
@@ -40,6 +41,7 @@ export default function RecommendationPage() {
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [showBannedWords, setShowBannedWords] = useState(false);
   const [eventForm, setEventForm] = useState({ title: "", eventDate: "", category: "other" });
 
   const utils = trpc.useUtils();
@@ -134,7 +136,7 @@ export default function RecommendationPage() {
       <div className="card-surface p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <p className="eyebrow">近期事件</p>
+            <h2 className="font-serif font-bold text-ink text-lg">近期事件</h2>
             <span className="text-[11px] font-mono text-muted">
               {showAllEvents ? `共 ${upcomingEvents.length} 项` : `10天内 ${urgentEvents.length} 项`}
             </span>
@@ -214,6 +216,32 @@ export default function RecommendationPage() {
         </div>
       </div>
 
+      {/* 禁用词表 */}
+      <div className="card-surface p-5">
+        <button
+          onClick={() => setShowBannedWords(!showBannedWords)}
+          className="w-full flex items-center justify-between"
+        >
+          <h2 className="font-serif font-bold text-ink text-lg">禁用词表</h2>
+          <span className="mono-data text-accent hover:text-accent-deep transition-colors">
+            {showBannedWords ? "收起 ▲" : "展开 ▼"}
+          </span>
+        </button>
+        {showBannedWords && (
+          <div className="mt-3">
+            {BANNED_WORDS.length === 0 ? (
+              <p className="text-sm text-muted font-serif italic">禁用词表待补充</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {BANNED_WORDS.map((w) => (
+                  <span key={w} className="status-pill bg-[#FEE2E2] text-[#991B1B]">{w}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {recommendMutation.isError && (
         <div className="text-sm text-[#991B1B] bg-[#FEE2E2] px-3 py-2">{recommendMutation.error?.message || "生成失败"}</div>
       )}
@@ -222,7 +250,7 @@ export default function RecommendationPage() {
         <div className="space-y-5">
           {displayResult.strategy && (
             <div className="card-surface p-5 border-l-[3px] border-accent">
-              <p className="eyebrow mb-2">策略建议</p>
+              <h2 className="font-serif font-bold text-ink text-lg mb-2">策略建议</h2>
               <p className="text-sm text-ink-soft leading-relaxed">{displayResult.strategy}</p>
             </div>
           )}

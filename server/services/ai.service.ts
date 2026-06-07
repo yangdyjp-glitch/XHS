@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { BANNED_WORDS } from "../../shared/bannedWords.js";
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -127,6 +128,10 @@ ${analysisResult ? `## 上期复盘分析
 ${upcomingEvents && upcomingEvents.length > 0 ? `## 近期重要事件节点（请重点结合这些时间节点推荐蹭热点选题）
 ${upcomingEvents.map(e => `- ${e.eventDate} ${e.title}（${e.category}）`).join("\n")}` : ""}
 
+${BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
+以下词语为平台禁用词，所有选题标题、关键词、推荐理由和策略建议中都**绝对不得出现**，也不要使用其近义表达规避：
+${BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
+
 请推荐5-8个下期选题方向。**务必结合近期事件节点，提前布局热点内容**。以JSON格式输出：
 {
   "recommendations": [
@@ -158,6 +163,16 @@ ${upcomingEvents.map(e => `- ${e.eventDate} ${e.title}（${e.category}）`).join
     const result: RecommendationResult = jsonMatch
       ? JSON.parse(jsonMatch[0])
       : { recommendations: [], strategy: text };
+
+    // 兜底：万一模型仍输出禁用词，从策略与推荐文本中剔除
+    const scrub = (s: string) => BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    result.strategy = scrub(result.strategy);
+    result.recommendations = (result.recommendations || []).map((r) => ({
+      ...r,
+      title: scrub(r.title),
+      reason: scrub(r.reason),
+      keywords: (r.keywords || []).map(scrub),
+    }));
 
     return { result, tokensUsed, prompt };
   } catch (e: any) {

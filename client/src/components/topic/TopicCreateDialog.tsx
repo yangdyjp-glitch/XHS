@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { trpc } from "../../lib/trpc.js";
 import { useAuth } from "../../hooks/useAuth.js";
 import { PRESET_TOPIC_TYPES } from "@shared/enums.js";
+import { findBannedWords } from "@shared/bannedWords.js";
 
 interface Props {
   onClose: () => void;
@@ -46,6 +47,8 @@ export default function TopicCreateDialog({ onClose, onCreated }: Props) {
     if (createMutation.isPending) return;
 
     if (!form.title.trim()) { setError("请填写标题"); return; }
+    const hits = findBannedWords(form.title);
+    if (hits.length > 0) { setError(`标题包含禁用词：${hits.join("、")}，请修改后再提交`); return; }
     if (!form.plannedPublishDate) { setError("请选择计划发布时间"); return; }
     if (!form.topicType.trim()) { setError("请填写类型"); return; }
 
