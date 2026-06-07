@@ -59,11 +59,14 @@ export default function RecommendationPage() {
   const deleteEventMutation = trpc.event.delete.useMutation({ onSuccess: () => utils.event.upcoming.invalidate() });
   const refreshRecMutation = trpc.review.refreshRecommendation.useMutation();
   const rejectRecMutation = trpc.review.rejectRecommendation.useMutation();
+  const persistRecsMutation = trpc.review.updateRecommendationResult.useMutation();
 
   const result = recommendMutation.data?.result;
   const latestPast = pastQuery.data?.[0];
   const latestPastResult = latestPast?.resultJson as any;
   const displayResult = result || latestPastResult;
+  // 当前展示的推荐结果在数据库中的记录 id（用于把刷新结果写回）
+  const currentAnalysisId = recommendMutation.data?.analysis?.id ?? latestPast?.id ?? null;
 
   // 推荐列表同步到本地可编辑副本（刷新/删除在副本上操作）
   useEffect(() => {
@@ -97,7 +100,20 @@ export default function RecommendationPage() {
       accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
     }, {
       onSuccess: (data) => {
-        setLocalRecs((prev) => (prev || []).map((r) => (r.title === seedTitle ? data.recommendation : r)));
+        setLocalRecs((prev) => {
+          const next = (prev || []).map((r) => (r.title === seedTitle ? data.recommendation : r));
+          if (currentAnalysisId) {
+            const payload = next.map((r) => ({
+              title: r.title,
+              topicType: r.topicType || "",
+              keywords: r.keywords || [],
+              reason: r.reason || "",
+              priority: r.priority || "normal",
+            }));
+            queueMicrotask(() => persistRecsMutation.mutate({ id: currentAnalysisId, recommendations: payload }));
+          }
+          return next;
+        });
         stopRefreshing();
       },
       onError: stopRefreshing,

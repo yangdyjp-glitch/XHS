@@ -363,6 +363,38 @@ export const reviewRouter = router({
     return rows.map((r) => r.title);
   }),
 
+  // 持久化推荐列表（刷新后写回，避免切换页面丢失）
+  updateRecommendationResult: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        recommendations: z.array(
+          z.object({
+            title: z.string(),
+            topicType: z.string(),
+            keywords: z.array(z.string()),
+            reason: z.string(),
+            priority: z.string().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const [row] = await db
+        .select()
+        .from(aiAnalysisResults)
+        .where(eq(aiAnalysisResults.id, input.id))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "推荐结果不存在" });
+      const existing = (row.resultJson as any) || {};
+      const updated = { ...existing, recommendations: input.recommendations };
+      await db
+        .update(aiAnalysisResults)
+        .set({ resultJson: updated })
+        .where(eq(aiAnalysisResults.id, input.id));
+      return { success: true };
+    }),
+
   // 否决一条推荐：记录后 AI 不再生成类似推荐
   rejectRecommendation: protectedProcedure
     .input(
