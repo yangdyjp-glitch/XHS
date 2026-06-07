@@ -74,7 +74,7 @@ export default function ReviewPage() {
               disabled={generateMutation.isPending}
               className="bg-ink text-card px-4 py-1.5 text-sm font-medium rounded-full hover:bg-ink-soft disabled:opacity-50"
             >
-              {generateMutation.isPending ? "生成中..." : "生成月报"}
+              {generateMutation.isPending ? "生成中..." : "生成报告"}
             </button>
           </div>
         </div>
