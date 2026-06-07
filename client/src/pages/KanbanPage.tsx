@@ -141,7 +141,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "approved"); }}
-          className="text-xs bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft"
+          className="text-[10px] bg-ink text-card px-1.5 py-0.5 rounded-full hover:bg-ink-soft"
         >
           通过
         </button>
@@ -151,7 +151,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "writing"); }}
-          className="text-xs bg-[#6D28D9] text-white px-2 py-0.5 rounded-full hover:bg-[#5B21B6]"
+          className="text-[10px] bg-[#6D28D9] text-white px-1.5 py-0.5 rounded-full hover:bg-[#5B21B6]"
         >
           开始写作
         </button>
@@ -161,7 +161,7 @@ export default function KanbanPage() {
       return (
         <button
           onClick={(e) => { e.stopPropagation(); setPublishTopic({ id: topic.id, title: topic.title }); }}
-          className="text-xs bg-[#166534] text-white px-2 py-0.5 rounded-full hover:bg-[#15803D]"
+          className="text-[10px] bg-[#166534] text-white px-1.5 py-0.5 rounded-full hover:bg-[#15803D]"
         >
           发布
         </button>
