@@ -83,9 +83,14 @@ export default function KanbanPage() {
   const [publishTopic, setPublishTopic] = useState<{ id: number; title: string } | null>(null);
   const [filterAccounts, setFilterAccounts] = useState<number[]>([]);
   const [search, setSearch] = useState("");
-  const [filterMonth, setFilterMonth] = useState(() => {
+  const [filterStart, setFilterStart] = useState(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [filterEnd, setFilterEnd] = useState(() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   });
 
   const topicsQuery = trpc.topic.list.useQuery(
@@ -116,16 +121,16 @@ export default function KanbanPage() {
     for (const col of KANBAN_COLUMNS) map[col.key] = [];
     if (topicsQuery.data) {
       for (const t of topicsQuery.data) {
-        if (filterMonth && t.plannedPublishDate) {
-          if (!t.plannedPublishDate.startsWith(filterMonth)) continue;
-        } else if (filterMonth && !t.plannedPublishDate) {
-          continue;
+        if (filterStart || filterEnd) {
+          if (!t.plannedPublishDate) continue;
+          if (filterStart && t.plannedPublishDate < filterStart) continue;
+          if (filterEnd && t.plannedPublishDate > filterEnd) continue;
         }
         if (map[t.status]) map[t.status].push(t);
       }
     }
     return map;
-  }, [topicsQuery.data, filterMonth]);
+  }, [topicsQuery.data, filterStart, filterEnd]);
 
   const handleStatusChange = (topicId: number, newStatus: string) => {
     statusMutation.mutate({ id: topicId, newStatus });
@@ -175,12 +180,21 @@ export default function KanbanPage() {
             <h1 className="editorial-heading text-[28px] leading-tight">选题看板</h1>
           </div>
           <div className="flex items-center gap-3">
-            <input
-              type="month"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
-            />
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={filterStart}
+                onChange={(e) => setFilterStart(e.target.value)}
+                className="border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
+              />
+              <span className="text-muted text-sm">至</span>
+              <input
+                type="date"
+                value={filterEnd}
+                onChange={(e) => setFilterEnd(e.target.value)}
+                className="border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
             <input
               type="text"
               placeholder="搜索选题..."

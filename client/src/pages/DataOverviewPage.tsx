@@ -72,13 +72,14 @@ function AccountMultiSelect({ accounts, selected, onChange }: {
   );
 }
 
-const DAY_MIN = 0;
-const DAY_MAX = 30;
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function DataOverviewPage() {
   const [filterAccounts, setFilterAccounts] = useState<number[]>([]);
-  const [minDays, setMinDays] = useState(DAY_MIN);
-  const [maxDays, setMaxDays] = useState(DAY_MAX);
+  const [filterStart, setFilterStart] = useState(() => toYMD(new Date(Date.now() - 30 * 86400000)));
+  const [filterEnd, setFilterEnd] = useState(() => toYMD(new Date()));
   const [expandedNote, setExpandedNote] = useState<number | null>(null);
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const notesQuery = trpc.note.listWithMetrics.useQuery(
@@ -89,10 +90,12 @@ export default function DataOverviewPage() {
   const filteredNotes = useMemo(() => {
     if (!notesQuery.data) return undefined;
     return notesQuery.data.filter((n) => {
-      const age = daysSincePublish(n.publishedAt);
-      return age >= minDays && age <= maxDays;
+      const pub = toYMD(new Date(n.publishedAt));
+      if (filterStart && pub < filterStart) return false;
+      if (filterEnd && pub > filterEnd) return false;
+      return true;
     });
-  }, [notesQuery.data, minDays, maxDays]);
+  }, [notesQuery.data, filterStart, filterEnd]);
 
   return (
     <div>
@@ -104,33 +107,19 @@ export default function DataOverviewPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-sm">
-              <span className="text-muted">天数</span>
               <input
-                type="number"
-                min={DAY_MIN}
-                max={DAY_MAX}
-                value={minDays}
-                onChange={(e) => {
-                  const v = Math.min(Math.max(Number(e.target.value) || DAY_MIN, DAY_MIN), DAY_MAX);
-                  setMinDays(v);
-                  if (v > maxDays) setMaxDays(v);
-                }}
-                className="w-14 border border-hairline bg-card px-2 py-2 text-center text-ink focus:border-accent outline-none"
+                type="date"
+                value={filterStart}
+                onChange={(e) => setFilterStart(e.target.value)}
+                className="border border-hairline bg-card px-3 py-2 text-ink focus:border-accent outline-none"
               />
-              <span className="text-muted">-</span>
+              <span className="text-muted">至</span>
               <input
-                type="number"
-                min={DAY_MIN}
-                max={DAY_MAX}
-                value={maxDays}
-                onChange={(e) => {
-                  const v = Math.min(Math.max(Number(e.target.value) || DAY_MAX, DAY_MIN), DAY_MAX);
-                  setMaxDays(v);
-                  if (v < minDays) setMinDays(v);
-                }}
-                className="w-14 border border-hairline bg-card px-2 py-2 text-center text-ink focus:border-accent outline-none"
+                type="date"
+                value={filterEnd}
+                onChange={(e) => setFilterEnd(e.target.value)}
+                className="border border-hairline bg-card px-3 py-2 text-ink focus:border-accent outline-none"
               />
-              <span className="text-muted">天</span>
             </div>
             <AccountMultiSelect
               accounts={accountsQuery.data}
