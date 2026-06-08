@@ -8,25 +8,34 @@ import fs from "fs";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { createClient } from "@supabase/supabase-js";
 import { appRouter } from "./routers/index.js";
 import { createContext, verifyUploadAuth } from "./_core/trpc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOADS_DIR = path.resolve(__dirname, "../uploads");
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
+
+// Supabase Storage client
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STORAGE_BUCKET = "covers";
+
+let supabase: ReturnType<typeof createClient> | null = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  console.log("[Compass] Supabase Storage enabled");
+} else {
+  console.warn("[Compass] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing — file uploads disabled");
+}
 
 app.use(compression());
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 
-// Serve uploaded files
-app.use("/uploads", express.static(UPLOADS_DIR));
-
-// File upload endpoint
+// File upload endpoint — Supabase Storage
 app.post("/api/upload", async (req, res) => {
   try {
     const user = await verifyUploadAuth(req);
@@ -35,22 +44,48 @@ app.post("/api/upload", async (req, res) => {
       return;
     }
 
+    if (!supabase) {
+      res.status(500).json({ error: "存储服务未配置" });
+      return;
+    }
+
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => {
-      const body = Buffer.concat(chunks);
-      const contentType = req.headers["content-type"] || "";
+    req.on("end", async () => {
+      try {
+        const body = Buffer.concat(chunks);
+        const contentType = req.headers["content-type"] || "";
 
-      if (!contentType.startsWith("image/")) {
-        res.status(400).json({ error: "只支持上传图片" });
-        return;
+        if (!contentType.startsWith("image/")) {
+          res.status(400).json({ error: "只支持上传图片" });
+          return;
+        }
+
+        const ext = contentType.split("/")[1]?.split(";")[0] || "png";
+        const filename = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`;
+
+        const { error } = await supabase!.storage
+          .from(STORAGE_BUCKET)
+          .upload(filename, body, {
+            contentType,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error("[Compass] Storage upload error:", error.message);
+          res.status(500).json({ error: "上传失败：" + error.message });
+          return;
+        }
+
+        const { data: urlData } = supabase!.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(filename);
+
+        res.json({ url: urlData.publicUrl });
+      } catch (e: any) {
+        console.error("[Compass] Upload processing error:", e.message);
+        res.status(500).json({ error: "上传处理失败" });
       }
-
-      const ext = contentType.split("/")[1]?.split(";")[0] || "png";
-      const filename = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${ext}`;
-      const filepath = path.join(UPLOADS_DIR, filename);
-      fs.writeFileSync(filepath, body);
-      res.json({ url: `/uploads/${filename}` });
     });
   } catch {
     res.status(500).json({ error: "上传失败" });
@@ -92,8 +127,34 @@ async function runAutoMigrations() {
   }
 }
 
+// Ensure Supabase Storage bucket exists
+async function ensureStorageBucket() {
+  if (!supabase) return;
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const exists = buckets?.some((b) => b.name === STORAGE_BUCKET);
+    if (!exists) {
+      const { error } = await supabase.storage.createBucket(STORAGE_BUCKET, {
+        public: true,
+        allowedMimeTypes: ["image/png", "image/jpeg", "image/gif", "image/webp"],
+        fileSizeLimit: 5 * 1024 * 1024, // 5MB
+      });
+      if (error) {
+        console.warn("[Compass] Create bucket error:", error.message);
+      } else {
+        console.log("[Compass] Storage bucket 'covers' created.");
+      }
+    } else {
+      console.log("[Compass] Storage bucket 'covers' exists.");
+    }
+  } catch (e: any) {
+    console.warn("[Compass] Storage bucket check error:", e.message);
+  }
+}
+
 async function startServer() {
   await runAutoMigrations();
+  await ensureStorageBucket();
   if (process.env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../dist/client");
     // Hashed assets (JS/CSS) — cache for 1 year
