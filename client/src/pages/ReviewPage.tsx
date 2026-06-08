@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -6,11 +6,52 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
 }
 
+// Generate recent weeks list (last 12 weeks)
+function getRecentWeeks(count = 12) {
+  const weeks: { label: string; start: string; end: string }[] = [];
+  const now = new Date();
+  for (let i = 1; i <= count; i++) {
+    const day = now.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diffToMonday - i * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const s = monday.toISOString().split("T")[0];
+    const e = sunday.toISOString().split("T")[0];
+    const mStr = `${monday.getMonth() + 1}/${monday.getDate()}`;
+    const sStr = `${sunday.getMonth() + 1}/${sunday.getDate()}`;
+    weeks.push({ label: `${mStr} – ${sStr}`, start: s, end: e });
+  }
+  return weeks;
+}
+
+// Generate recent months list (last 12 months)
+function getRecentMonths(count = 12) {
+  const months: { label: string; start: string; end: string }[] = [];
+  const now = new Date();
+  for (let i = 1; i <= count; i++) {
+    const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const e = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+    months.push({
+      label: `${s.getFullYear()}年${s.getMonth() + 1}月`,
+      start: s.toISOString().split("T")[0],
+      end: e.toISOString().split("T")[0],
+    });
+  }
+  return months;
+}
+
 export default function ReviewPage() {
   const { isLeader, isTeacher } = useAuth();
   // Teachers can only use monthly reports
   const [tab, setTab] = useState<"weekly" | "monthly">(isTeacher ? "monthly" : "weekly");
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState(0); // index into weeks/months list
+
+  const weeks = useMemo(() => getRecentWeeks(), []);
+  const months = useMemo(() => getRecentMonths(), []);
+  const periods = tab === "weekly" ? weeks : months;
 
   const reviewsQuery = trpc.review.list.useQuery(
     { type: tab, limit: 20 },
@@ -56,21 +97,34 @@ export default function ReviewPage() {
             {isLeader ? (
               <div className="flex border border-hairline bg-card">
                 <button
-                  onClick={() => { setTab("weekly"); setSelectedReview(null); }}
+                  onClick={() => { setTab("weekly"); setSelectedReview(null); setSelectedPeriod(0); }}
                   className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "weekly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
                 >
                   WEEKLY
                 </button>
                 <button
-                  onClick={() => { setTab("monthly"); setSelectedReview(null); }}
+                  onClick={() => { setTab("monthly"); setSelectedReview(null); setSelectedPeriod(0); }}
                   className={`px-4 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${tab === "monthly" ? "bg-ink text-card" : "text-muted hover:text-ink"}`}
                 >
                   MONTHLY
                 </button>
               </div>
             ) : null}
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(Number(e.target.value))}
+              className="border border-hairline bg-card px-3 py-1.5 text-sm text-ink focus:border-accent outline-none min-w-[10rem]"
+            >
+              {periods.map((p, i) => (
+                <option key={i} value={i}>{p.label}</option>
+              ))}
+            </select>
             <button
-              onClick={() => generateMutation.mutate({ type: tab })}
+              onClick={() => generateMutation.mutate({
+                type: tab,
+                periodStart: periods[selectedPeriod].start,
+                periodEnd: periods[selectedPeriod].end,
+              })}
               disabled={generateMutation.isPending}
               className="bg-ink text-card px-4 py-1.5 text-sm font-medium rounded-full hover:bg-ink-soft disabled:opacity-50"
             >
