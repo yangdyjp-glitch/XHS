@@ -237,7 +237,7 @@ export default function ReviewPage() {
               {/* AI Analysis */}
               <div className="card-surface p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="eyebrow">AI ANALYSIS</p>
+                  <p className="eyebrow">AI 分析</p>
                   <button
                     onClick={() => analyzeMutation.mutate({ reviewId: review.id })}
                     disabled={analyzeMutation.isPending}
@@ -257,7 +257,7 @@ export default function ReviewPage() {
 
                     {analysisResult.topPerformers?.length > 0 && (
                       <div>
-                        <p className="eyebrow mb-2 text-[#166534]">TOP PERFORMERS</p>
+                        <p className="eyebrow mb-2 text-[#166534]">表现优异</p>
                         {analysisResult.topPerformers.map((t: any, i: number) => (
                           <div key={i} className="flex gap-2 py-1.5 border-b border-hairline last:border-0">
                             <span className="text-[#166534] shrink-0 font-mono text-xs">+</span>
@@ -269,7 +269,7 @@ export default function ReviewPage() {
 
                     {analysisResult.bottomPerformers?.length > 0 && (
                       <div>
-                        <p className="eyebrow mb-2 text-[#9A3412]">NEEDS IMPROVEMENT</p>
+                        <p className="eyebrow mb-2 text-[#9A3412]">有待改进</p>
                         {analysisResult.bottomPerformers.map((t: any, i: number) => (
                           <div key={i} className="flex gap-2 py-1.5 border-b border-hairline last:border-0">
                             <span className="text-[#9A3412] shrink-0 font-mono text-xs">-</span>
@@ -281,7 +281,7 @@ export default function ReviewPage() {
 
                     {analysisResult.contentFormulas?.length > 0 && (
                       <div>
-                        <p className="eyebrow mb-2">CONTENT FORMULA</p>
+                        <p className="eyebrow mb-2">内容公式</p>
                         <ul className="space-y-1 text-ink-soft">
                           {analysisResult.contentFormulas.map((f: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-accent font-mono text-xs">*</span>{f}</li>
@@ -292,7 +292,7 @@ export default function ReviewPage() {
 
                     {analysisResult.trends?.length > 0 && (
                       <div>
-                        <p className="eyebrow mb-2">TRENDS</p>
+                        <p className="eyebrow mb-2">趋势洞察</p>
                         <ul className="space-y-1 text-ink-soft">
                           {analysisResult.trends.map((t: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-[#6D28D9] font-mono text-xs">*</span>{t}</li>
@@ -303,7 +303,7 @@ export default function ReviewPage() {
 
                     {analysisResult.improvements?.length > 0 && (
                       <div>
-                        <p className="eyebrow mb-2">IMPROVEMENTS</p>
+                        <p className="eyebrow mb-2">改进建议</p>
                         <ul className="space-y-1 text-ink-soft">
                           {analysisResult.improvements.map((imp: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-[#9A3412] font-mono text-xs">*</span>{imp}</li>
