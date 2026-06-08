@@ -10,6 +10,7 @@ interface Props {
 }
 
 export default function PublishDialog({ topicId, topicTitle, mode = "publish", onClose, onPublished }: Props) {
+  const [title, setTitle] = useState(topicTitle);
   const [noteUrl, setNoteUrl] = useState("");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState("");
@@ -86,9 +87,10 @@ export default function PublishDialog({ topicId, topicTitle, mode = "publish", o
 
     activeMutation.mutate({
       topicId,
+      ...(mode === "republish" && title.trim() !== topicTitle ? { title: title.trim() } : {}),
       xhsNoteUrl: noteUrl.trim(),
       coverImage: coverUrl || undefined,
-    }, {
+    } as any, {
       onError: (err: any) => setError(err.message || "操作失败"),
     });
   };
@@ -102,12 +104,24 @@ export default function PublishDialog({ topicId, topicTitle, mode = "publish", o
         <div className="px-6 py-4 border-b border-hairline">
           <p className="eyebrow mb-0.5">{mode === "republish" ? "重新上传" : "发布"}</p>
           <h2 className="font-serif font-bold text-ink text-lg">{mode === "republish" ? "重新上传笔记" : "发布笔记"}</h2>
-          <p className="text-sm text-muted mt-1 truncate">{topicTitle}</p>
+          {mode !== "republish" && <p className="text-sm text-muted mt-1 truncate">{topicTitle}</p>}
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="text-sm text-[#991B1B] bg-[#FEE2E2] px-3 py-2">{error}</div>
+          )}
+
+          {mode === "republish" && (
+            <div>
+              <label className="eyebrow block mb-1.5">笔记标题</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
+                placeholder="修改笔记标题"
+              />
+            </div>
           )}
 
           <div>

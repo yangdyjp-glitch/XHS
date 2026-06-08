@@ -252,8 +252,8 @@ export const topicRouter = router({
         return { success: true };
       }
 
-      // Editors can edit title of "writing" topics even if not creator
-      if (ctx.user.role === "editor" && topic.status === "writing" && input.title && Object.keys(updates).length === 1) {
+      // Editors can edit title of "writing" or "published" topics even if not creator
+      if (ctx.user.role === "editor" && (topic.status === "writing" || topic.status === "published") && input.title && Object.keys(updates).length === 1) {
         await db.update(topics).set({ title: input.title, updatedAt: new Date() }).where(eq(topics.id, id));
         return { success: true };
       }
@@ -363,6 +363,7 @@ export const topicRouter = router({
     .input(
       z.object({
         topicId: z.number(),
+        title: z.string().min(1).optional(),
         xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
         coverImage: z.string().optional(),
       })
@@ -377,11 +378,17 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "没有权限操作" });
       }
 
+      // Update topic title if provided
+      const effectiveTitle = input.title?.trim() || topic.title;
+      if (input.title && input.title.trim() !== topic.title) {
+        await db.update(topics).set({ title: input.title.trim(), updatedAt: new Date() }).where(eq(topics.id, input.topicId));
+      }
+
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
       if (existing.length > 0) {
         // Overwrite existing note; only update coverImage if a new one was provided
         const updateData: Record<string, any> = {
-          finalTitle: topic.title,
+          finalTitle: effectiveTitle,
           xhsNoteUrl: input.xhsNoteUrl,
           publishedAt: new Date(),
         };
@@ -394,7 +401,7 @@ export const topicRouter = router({
         await db.insert(notes).values({
           topicId: topic.id,
           accountId: topic.accountId,
-          finalTitle: topic.title,
+          finalTitle: effectiveTitle,
           xhsNoteUrl: input.xhsNoteUrl,
           coverImage: input.coverImage || null,
           publishedAt: new Date(),

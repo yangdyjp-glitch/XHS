@@ -92,8 +92,8 @@ export default function TopicDetailPage() {
     });
   };
 
-  // Feature 5: Can this user edit the title?
-  const canEditTitle = topic.status === "writing" && (isLeader || isEditor);
+  // Feature 5: Can this user edit the title? (writing + published for editor/leader)
+  const canEditTitle = (topic.status === "writing" || topic.status === "published") && (isLeader || isEditor);
 
   const handleSaveTitle = () => {
     if (titleDraft.trim() && titleDraft !== topic.title) {
