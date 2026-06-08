@@ -44,6 +44,14 @@ export interface RecommendationResult {
   strategy: string;
 }
 
+// 判断型内容方法论：留学机构账号的增长命脉，复盘分析与下期建议都用它当评判尺子。
+// 提炼自实战方法论，并对齐本系统能看到的指标（曝光/阅读/互动结构），而非照搬原文。
+const JUDGMENT_CONTENT_GUIDE = `## 核心方法论：判断型内容 > 知识型干货（这是留学机构账号的增长命脉，必须当作评判与推荐的尺子）
+- 用户付费买的是「判断」而不是「知识」。攻略、模板、时间线、考点速记、资料合集这类纯干货网上到处都有，只会吸引"求资料/领模板"的白嫖党——他们会关注但几乎不转化。
+- 真正带来付费用户的是判断型内容：围绕「一个具体的学生 + 一个反直觉的决定 + 为什么」，有立场、有取舍、有"我建议/我劝/我让"、有反常识结论，展现的是决策和思考过程，而不是干巴巴的结论或罗列。
+- 判断高低要看互动结构而不仅是曝光量：高曝光却只换来收藏/泛泛点赞、缺乏评论讨论，往往是吸引了白嫖党；能引发"为什么、怎么选、我也在纠结"这类讨论的，才是判断型内容在起效。
+- 强工具性内容（考试速记、套磁模板、纯专业科普）受众窄、起量难，只适合做精准转化的补充，不该当作起量主力。`;
+
 export async function analyzePerformance(data: ReviewInputData): Promise<{ result: AnalysisResult; tokensUsed: number; prompt: string }> {
   const prompt = `你是小红书内容运营分析专家。请根据以下数据，对这段时间的内容表现进行复盘分析。
 
@@ -63,14 +71,16 @@ ${data.notes.map(n => {
 发布笔记: ${data.totals.noteCount}篇
 总曝光: ${data.totals.totalImpression} | 总阅读: ${data.totals.totalView} | 总点赞: ${data.totals.totalLike} | 总收藏: ${data.totals.totalCollect} | 总评论: ${data.totals.totalComment} | 总分享: ${data.totals.totalShare}
 
-请以JSON格式输出分析结果，结构如下：
+${JUDGMENT_CONTENT_GUIDE}
+
+请结合上面的「判断型 vs 知识型」方法论，以JSON格式输出分析结果，结构如下：
 {
-  "summary": "整体表现总结（2-3句话）",
-  "topPerformers": [{"title": "笔记标题", "reason": "表现好的原因"}],
-  "bottomPerformers": [{"title": "笔记标题", "reason": "表现不佳的原因分析"}],
-  "contentFormulas": ["发现的有效内容公式，如XX类型+XX关键词效果好"],
-  "trends": ["趋势洞察"],
-  "improvements": ["具体改进建议"]
+  "summary": "整体表现总结（2-3句话），点明这批内容整体偏判断型还是偏知识型干货，以及它如何影响了起量与转化",
+  "topPerformers": [{"title": "笔记标题", "reason": "表现好的原因，并指出它是否具备判断型特征（具体的人/反直觉决定/有立场有取舍）"}],
+  "bottomPerformers": [{"title": "笔记标题", "reason": "表现不佳的原因，重点判断它是否落入了纯干货/强工具性内容的陷阱（受众窄、只吸引白嫖党）"}],
+  "contentFormulas": ["可复制的有效公式，优先提炼判断型角度（如某种'反直觉决策+理由'的结构），而不是单纯的关键词堆叠"],
+  "trends": ["趋势洞察，关注判断型内容与工具型内容在起量、互动结构上的分化"],
+  "improvements": ["具体改进建议，给出如何把表现差的知识型选题改写成判断型的可执行方向（具体到对象、立场、反差点）"]
 }
 
 只输出JSON，不要其他文字。`;
@@ -146,18 +156,24 @@ ${STRICT_BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
 ${STRICT_BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
 
 ${rejectedBlock(rejected)}
-请推荐5-8个下期选题方向。**务必结合近期事件节点，提前布局热点内容**。以JSON格式输出：
+${JUDGMENT_CONTENT_GUIDE}
+
+请推荐5-8个下期选题方向，要求：
+1. **务必结合近期事件节点，提前布局热点内容**。
+2. 每个方向尽量做成判断型角度：能落到「一个具体的学生 / 一次具体决策 + 反直觉结论 + 为什么」，标题带立场与取舍（例如"为什么我不建议这个分数段死磕EJU""同样均分，为什么我劝一个冲早大、另一个先保MARCH"），而不是"XX攻略 / XX怎么写 / XX时间线 / 考点速记"这类知识型干货。
+3. 主动规避强工具性、纯专业科普、以及"求资料 / 领模板 / 扣1领取"式诱导白嫖的选题。
+以JSON格式输出：
 {
   "recommendations": [
     {
-      "title": "建议的选题标题",
+      "title": "判断型选题标题（聚焦具体对象、带立场或反差，而非泛泛的攻略）",
       "topicType": "选题类型",
       "keywords": ["关键词1", "关键词2"],
-      "reason": "推荐理由（为什么这个方向值得做，与哪个时间节点相关）",
+      "reason": "推荐理由：这个判断角度为什么能吸引'需要别人帮他做决策'的付费用户，以及与哪个时间节点相关",
       "priority": "high/normal/low"
     }
   ],
-  "strategy": "整体策略建议（2-3句话）"
+  "strategy": "整体策略建议（2-3句话），点明下期如何从知识型干货转向判断型内容"
 }
 
 只输出JSON，不要其他文字。`;
@@ -226,12 +242,14 @@ ${rejectedBlock(rejected)}
 ${avoidTitles && avoidTitles.length > 0 ? `## 当前已有的其它推荐（不要与这些重复）
 ${avoidTitles.map(t => `- ${t}`).join("\n")}` : ""}
 
-请只输出**一条**新的选题推荐，保持与原方向主题相关但角度/切入点不同。以JSON格式输出：
+${JUDGMENT_CONTENT_GUIDE}
+
+请只输出**一条**新的选题推荐，保持与原方向主题相关但角度/切入点不同，并且尽量做成判断型角度（具体对象 + 反直觉决策 + 为什么，有立场有取舍），避免退化成纯攻略/纯科普/工具型干货。以JSON格式输出：
 {
-  "title": "建议的选题标题",
+  "title": "判断型选题标题（聚焦具体对象、带立场或反差）",
   "topicType": "选题类型",
   "keywords": ["关键词1", "关键词2"],
-  "reason": "推荐理由",
+  "reason": "推荐理由（这个判断角度为什么能吸引付费用户）",
   "priority": "high/normal/low"
 }
 
