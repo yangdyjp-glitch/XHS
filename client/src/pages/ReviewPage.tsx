@@ -210,21 +210,24 @@ export default function ReviewPage() {
                 )}
               </div>
 
-              {/* KPI Summary */}
+              {/* KPI Summary — 设计与「矩阵总览」完全一致：标签在上、数字带色 */}
               {summaryJson && (
                 <div className="card-surface">
-                  <div className="grid grid-cols-3 sm:grid-cols-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                     {[
-                      { eyebrow: "NOTES", value: summaryJson.noteCount },
-                      { eyebrow: "IMP", value: summaryJson.totalImpression },
-                      { eyebrow: "VIEW", value: summaryJson.totalView },
-                      { eyebrow: "LIKE", value: summaryJson.totalLike },
-                      { eyebrow: "FAV", value: summaryJson.totalCollect },
-                      { eyebrow: "CMT", value: summaryJson.totalComment },
+                      { eyebrow: "发布笔记", value: summaryJson.noteCount, unit: "篇", color: "" },
+                      { eyebrow: "总曝光", value: summaryJson.totalImpression, unit: "", color: "text-[#2563EB]" },
+                      { eyebrow: "总阅读", value: summaryJson.totalView, unit: "", color: "text-[#059669]" },
+                      { eyebrow: "总点赞", value: summaryJson.totalLike, unit: "", color: "text-[#DC2626]" },
+                      { eyebrow: "总收藏", value: summaryJson.totalCollect, unit: "", color: "text-[#D97706]" },
+                      { eyebrow: "总评论", value: summaryJson.totalComment, unit: "", color: "text-[#7C3AED]" },
                     ].map((m, i) => (
-                      <div key={m.eyebrow} className={`px-4 py-4 text-center ${i > 0 ? "border-l border-hairline" : ""}`}>
-                        <div className="kpi-value text-xl">{(m.value || 0).toLocaleString()}</div>
-                        <div className="font-mono text-[9px] tracking-widest text-muted mt-1">{m.eyebrow}</div>
+                      <div key={m.eyebrow} className={`px-5 py-5 ${i > 0 ? "border-l border-hairline" : ""}`}>
+                        <p className="eyebrow mb-2">{m.eyebrow}</p>
+                        <div className={`kpi-value ${m.color}`}>
+                          {(m.value || 0).toLocaleString()}
+                          {m.unit && <span className="text-muted text-sm font-sans font-normal ml-1">{m.unit}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
