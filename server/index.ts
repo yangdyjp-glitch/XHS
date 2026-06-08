@@ -122,6 +122,12 @@ async function runAutoMigrations() {
       ALTER TABLE topics ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
     `);
     console.log("[Compass] Auto-migration: deleted_at column ensured.");
+
+    // Clean up old /uploads/ URLs (Railway ephemeral storage, now using Supabase Storage)
+    const cleanResult = await db.execute(sql`
+      UPDATE notes SET cover_image = NULL WHERE cover_image LIKE '/uploads/%'
+    `);
+    console.log("[Compass] Cleaned old /uploads/ cover URLs.");
   } catch (e: any) {
     console.warn("[Compass] Auto-migration warning:", e.message);
   }

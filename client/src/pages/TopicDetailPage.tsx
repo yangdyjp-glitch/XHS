@@ -5,28 +5,19 @@ import { useAuth } from "../hooks/useAuth.js";
 import { TOPIC_STATUS } from "@shared/enums.js";
 import PublishDialog from "../components/topic/PublishDialog.js";
 
+const PLACEHOLDER_COVER = "/cover-placeholder.png";
+
 function NoteImage({ src }: { src?: string | null }) {
   const [failed, setFailed] = useState(false);
 
-  if (!src) {
-    // No cover image — show placeholder
+  // No cover image or failed to load — show custom placeholder
+  if (!src || failed) {
     return (
-      <div className="w-20 h-20 shrink-0 bg-paper-alt border border-hairline flex items-center justify-center">
-        <svg className="w-8 h-8 text-muted/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (failed) {
-    // Image URL exists but failed to load — show broken placeholder
-    return (
-      <div className="w-20 h-20 shrink-0 bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center">
-        <svg className="w-6 h-6 text-[#991B1B]/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
+      <img
+        src={PLACEHOLDER_COVER}
+        alt="占位图"
+        className="w-20 h-20 object-cover shrink-0 bg-paper-alt border border-hairline"
+      />
     );
   }
 
