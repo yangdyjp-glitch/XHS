@@ -49,6 +49,8 @@ export default function ReviewPage() {
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(0); // index into weeks/months list
 
+  const utils = trpc.useUtils();
+
   const weeks = useMemo(() => getRecentWeeks(), []);
   const months = useMemo(() => getRecentMonths(), []);
   const periods = tab === "weekly" ? weeks : months;
@@ -69,10 +71,19 @@ export default function ReviewPage() {
     },
   });
   const deleteMutation = trpc.review.delete.useMutation({
-    onSuccess: () => {
-      setSelectedReview(null);
-      reviewsQuery.refetch();
+    // 乐观更新：点击后立即从列表移除，无需等待服务器
+    onMutate: async ({ id }) => {
+      const key = { type: tab, limit: 20 } as const;
+      setSelectedReview((cur) => (cur === id ? null : cur));
+      await utils.review.list.cancel(key);
+      const prev = utils.review.list.getData(key);
+      utils.review.list.setData(key, (old) => old?.filter((r) => r.id !== id));
+      return { prev, key };
     },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) utils.review.list.setData(ctx.key, ctx.prev);
+    },
+    onSettled: () => utils.review.list.invalidate(),
   });
   const analyzeMutation = trpc.review.aiAnalyze.useMutation({
     onSuccess: () => detailQuery.refetch(),

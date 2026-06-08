@@ -336,11 +336,14 @@ export const reviewRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const [review] = await db.select().from(reviews).where(eq(reviews.id, input.id)).limit(1);
-      if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
-
-      await db.delete(aiAnalysisResults).where(eq(aiAnalysisResults.reviewId, input.id));
-      await db.delete(reviews).where(eq(reviews.id, input.id));
+      // 单次往返：用数据修改型 CTE 一并删除子表分析结果 + 报告本身。
+      // 省去原先的存在性 SELECT 和第二次 DELETE（远程库共减少 2 次往返）。
+      await db.execute(sql`
+        WITH del_analyses AS (
+          DELETE FROM ai_analysis_results WHERE review_id = ${input.id}
+        )
+        DELETE FROM reviews WHERE id = ${input.id}
+      `);
       return { success: true };
     }),
 
