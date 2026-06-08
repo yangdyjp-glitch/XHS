@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { appRouter } from "./routers/index.js";
 import { createContext, verifyUploadAuth } from "./_core/trpc.js";
 
@@ -24,7 +25,9 @@ const STORAGE_BUCKET = "covers";
 
 let supabase: ReturnType<typeof createClient> | null = null;
 if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    realtime: { transport: ws as any },
+  });
   console.log("[Compass] Supabase Storage enabled");
 } else {
   console.warn("[Compass] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing — file uploads disabled");
