@@ -27,6 +27,7 @@ function usePrefetchRoutes() {
   useEffect(() => {
     const timer = setTimeout(() => {
       import("./pages/TopicDetailPage.js");
+      import("./pages/TrashPage.js");
       import("./pages/DataEntryPage.js");
       import("./pages/RecommendationPage.js");
       import("./pages/ReviewPage.js");
@@ -44,6 +45,7 @@ function usePrefetchData() {
   const utils = trpc.useUtils();
   useEffect(() => {
     const timer = setTimeout(() => {
+      utils.topic.listDeleted.prefetch();
       utils.note.listForDataEntry.prefetch();
       utils.event.upcoming.prefetch({ days: 365 });
       utils.review.listRecommendations.prefetch({ limit: 5 });
