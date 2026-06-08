@@ -222,7 +222,7 @@ export default function DataOverviewPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-block text-[11px] font-mono bg-ink text-card px-2.5 py-1 rounded-full hover:bg-ink-soft transition-colors"
+                              className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
                             >
                               查看
                             </a>
