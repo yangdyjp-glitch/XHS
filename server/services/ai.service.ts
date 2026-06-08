@@ -78,7 +78,7 @@ ${data.notes.map(n => {
   try {
     const client = getClient();
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-8",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
@@ -165,7 +165,7 @@ ${rejectedBlock(rejected)}
   try {
     const client = getClient();
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-8",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
@@ -240,7 +240,7 @@ ${avoidTitles.map(t => `- ${t}`).join("\n")}` : ""}
   try {
     const client = getClient();
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-8",
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });

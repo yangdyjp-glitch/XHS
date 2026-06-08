@@ -264,7 +264,7 @@ export const reviewRouter = router({
           inputDataJson: data,
           resultJson: result,
           resultText: result.summary,
-          modelUsed: "claude-sonnet-4-20250514",
+          modelUsed: "claude-opus-4-8",
           tokensUsed,
           createdBy: ctx.user.id,
         })
@@ -324,7 +324,7 @@ export const reviewRouter = router({
           inputDataJson: data,
           resultJson: result,
           resultText: result.strategy,
-          modelUsed: "claude-sonnet-4-20250514",
+          modelUsed: "claude-opus-4-8",
           tokensUsed,
           createdBy: ctx.user.id,
         })
