@@ -332,7 +332,14 @@ export const topicRouter = router({
       }
 
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
-      if (existing.length === 0) {
+      if (existing.length > 0) {
+        // Note already exists — update with publish info (cover image, URL)
+        await db.update(notes).set({
+          xhsNoteUrl: input.xhsNoteUrl,
+          coverImage: input.coverImage || null,
+          publishedAt: new Date(),
+        }).where(eq(notes.topicId, topic.id));
+      } else {
         await db.insert(notes).values({
           topicId: topic.id,
           accountId: topic.accountId,
@@ -372,13 +379,16 @@ export const topicRouter = router({
 
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
       if (existing.length > 0) {
-        // Overwrite existing note
-        await db.update(notes).set({
+        // Overwrite existing note; only update coverImage if a new one was provided
+        const updateData: Record<string, any> = {
           finalTitle: topic.title,
           xhsNoteUrl: input.xhsNoteUrl,
-          coverImage: input.coverImage || null,
           publishedAt: new Date(),
-        }).where(eq(notes.topicId, topic.id));
+        };
+        if (input.coverImage !== undefined) {
+          updateData.coverImage = input.coverImage || null;
+        }
+        await db.update(notes).set(updateData).where(eq(notes.topicId, topic.id));
       } else {
         // Create if somehow missing
         await db.insert(notes).values({
