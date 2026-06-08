@@ -56,7 +56,18 @@ export default function RecommendationPage() {
   const createEventMutation = trpc.event.create.useMutation({
     onSuccess: () => { setShowAddEvent(false); setEventForm({ title: "", eventDate: "", category: "other" }); utils.event.upcoming.invalidate(); },
   });
-  const deleteEventMutation = trpc.event.delete.useMutation({ onSuccess: () => utils.event.upcoming.invalidate() });
+  const deleteEventMutation = trpc.event.delete.useMutation({
+    onMutate: async ({ id }) => {
+      await utils.event.upcoming.cancel();
+      const prev = utils.event.upcoming.getData({ days: 365 });
+      utils.event.upcoming.setData({ days: 365 }, (old) => old?.filter((e: any) => e.id !== id));
+      return { prev };
+    },
+    onError: (_err: any, _vars: any, ctx: any) => {
+      if (ctx?.prev) utils.event.upcoming.setData({ days: 365 }, ctx.prev);
+    },
+    onSettled: () => utils.event.upcoming.invalidate(),
+  });
   const refreshRecMutation = trpc.review.refreshRecommendation.useMutation();
   const rejectRecMutation = trpc.review.rejectRecommendation.useMutation();
   const persistRecsMutation = trpc.review.updateRecommendationResult.useMutation();
