@@ -159,8 +159,6 @@ async function ensureStorageBucket() {
 }
 
 async function startServer() {
-  await runAutoMigrations();
-  await ensureStorageBucket();
   if (process.env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../dist/client");
     // Hashed assets (JS/CSS) — cache for 1 year
@@ -199,6 +197,11 @@ async function startServer() {
   const host = process.env.HOST || "0.0.0.0";
   app.listen(PORT, host, () => {
     console.log(`[Compass] Server running at http://${host}:${PORT} (${process.env.NODE_ENV || "development"})`);
+
+    // Run migrations & storage setup AFTER server is listening (so healthcheck passes)
+    runAutoMigrations()
+      .then(() => ensureStorageBucket())
+      .catch((e) => console.warn("[Compass] Post-start init error:", e.message));
   });
 }
 
