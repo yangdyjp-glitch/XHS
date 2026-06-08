@@ -25,9 +25,6 @@ export default function TopicDetailPage() {
   const [noteForm, setNoteForm] = useState({ finalTitle: "", xhsNoteUrl: "", publishedAt: "" });
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
-  // Feature 4: Reject dialog
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   // Feature 5: Title editing
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -41,8 +38,8 @@ export default function TopicDetailPage() {
     return <div className="text-muted py-10 text-center font-serif italic">选题不存在</div>;
   }
 
-  const handleStatusChange = (newStatus: string, reason?: string) => {
-    statusMutation.mutate({ id: topicId, newStatus, rejectReason: reason } as any);
+  const handleStatusChange = (newStatus: string) => {
+    statusMutation.mutate({ id: topicId, newStatus });
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -73,21 +70,8 @@ export default function TopicDetailPage() {
   const getStatusAction = () => {
     if (topic.status === "pending_review" && isLeader) {
       return (
-        <div className="flex items-center gap-2">
-          <button onClick={() => handleStatusChange("approved")} disabled={statusMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
-            {statusMutation.isPending ? "处理中..." : "审批通过"}
-          </button>
-          <button onClick={() => { setShowRejectDialog(true); setRejectReason(""); }} className="text-sm text-[#991B1B] border border-[#FECACA] px-4 py-1.5 rounded-full hover:bg-[#FEE2E2]">
-            驳回
-          </button>
-        </div>
-      );
-    }
-    // Feature 4: Rejected topics can be resubmitted
-    if (topic.status === "rejected" && (topic.creatorId === user?.id || isLeader)) {
-      return (
-        <button onClick={() => handleStatusChange("pending_review")} disabled={statusMutation.isPending} className="bg-[#D97706] text-white px-4 py-1.5 text-sm rounded-full hover:bg-[#B45309] disabled:opacity-50">
-          {statusMutation.isPending ? "处理中..." : "重新提交审核"}
+        <button onClick={() => handleStatusChange("approved")} disabled={statusMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
+          {statusMutation.isPending ? "处理中..." : "审批通过"}
         </button>
       );
     }
@@ -142,7 +126,7 @@ export default function TopicDetailPage() {
             )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {topic.status !== "published" && (
-                <span className={`status-pill ${topic.status === "rejected" ? "bg-[#991B1B]" : "bg-accent"} text-white`}>
+                <span className="status-pill bg-accent text-white">
                   {(TOPIC_STATUS as Record<string, string>)[topic.status]}
                 </span>
               )}
@@ -169,14 +153,6 @@ export default function TopicDetailPage() {
         </div>
         <div className="h-[1.5px] bg-ink mt-4" />
       </div>
-
-      {/* Feature 4: Reject reason display */}
-      {topic.status === "rejected" && topic.rejectReason && (
-        <div className="bg-[#FEF2F2] border border-[#FECACA] p-4 text-sm">
-          <p className="eyebrow text-[#991B1B] mb-1">驳回原因</p>
-          <p className="text-[#991B1B]">{topic.rejectReason}</p>
-        </div>
-      )}
 
       {/* Topic Info */}
       <div className="card-surface p-5 space-y-3">
@@ -293,36 +269,6 @@ export default function TopicDetailPage() {
           </div>
         ))}
       </div>
-
-      {/* Feature 4: Reject reason dialog */}
-      {showRejectDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20" onClick={() => setShowRejectDialog(false)}>
-          <div className="bg-card w-full max-w-sm mx-4 border border-hairline p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <p className="eyebrow mb-1">驳回</p>
-              <h3 className="font-serif font-bold text-ink">驳回选题</h3>
-            </div>
-            <div>
-              <label className="eyebrow block mb-1.5">驳回原因（选填）</label>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent h-24 resize-none"
-                placeholder="请填写驳回原因，方便发起人修改..."
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowRejectDialog(false)} className="px-4 py-2 text-sm text-muted hover:text-ink">取消</button>
-              <button
-                onClick={() => { handleStatusChange("rejected", rejectReason || undefined); setShowRejectDialog(false); }}
-                className="px-5 py-2 text-sm bg-[#991B1B] text-white rounded-full hover:bg-[#7F1D1D]"
-              >
-                确认驳回
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showPublish && topic && (
         <PublishDialog

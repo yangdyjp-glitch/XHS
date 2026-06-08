@@ -1,6 +1,5 @@
 export const TOPIC_STATUS = {
   pending_review: "待审批",
-  rejected: "已驳回",
   approved: "已通过",
   writing: "写作中",
   published: "已发布",
@@ -59,10 +58,6 @@ export const NOTIFICATION_TYPE = {
 export const VALID_STATUS_TRANSITIONS: Record<string, { next: string[]; by: "teacher" | "leader" | "any" }[]> = {
   pending_review: [
     { next: ["approved"], by: "leader" },
-    { next: ["rejected"], by: "leader" },
-  ],
-  rejected: [
-    { next: ["pending_review"], by: "teacher" },
   ],
   approved: [
     { next: ["writing"], by: "teacher" },

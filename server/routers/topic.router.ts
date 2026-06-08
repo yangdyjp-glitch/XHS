@@ -63,7 +63,6 @@ export const topicRouter = router({
           status: topics.status,
           plannedPublishDate: topics.plannedPublishDate,
           priority: topics.priority,
-          rejectReason: topics.rejectReason,
           createdAt: topics.createdAt,
           updatedAt: topics.updatedAt,
         })
@@ -161,7 +160,6 @@ export const topicRouter = router({
           status: topics.status,
           plannedPublishDate: topics.plannedPublishDate,
           priority: topics.priority,
-          rejectReason: topics.rejectReason,
           deletedAt: topics.deletedAt,
           createdAt: topics.createdAt,
           updatedAt: topics.updatedAt,
@@ -277,12 +275,10 @@ export const topicRouter = router({
       return { success: true };
     }),
 
-  // Feature 4: Status transitions now support rejected ↔ pending_review
   updateStatus: protectedProcedure
     .input(z.object({
       id: z.number(),
       newStatus: z.string(),
-      rejectReason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
@@ -291,10 +287,6 @@ export const topicRouter = router({
       const rules: Record<string, { to: string; by: string }[]> = {
         pending_review: [
           { to: "approved", by: "leader" },
-          { to: "rejected", by: "leader" },
-        ],
-        rejected: [
-          { to: "pending_review", by: "teacher" },
         ],
         approved: [{ to: "writing", by: "teacher" }],
         writing: [{ to: "published", by: "teacher" }],
@@ -313,21 +305,7 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "只能操作自己的选题" });
       }
 
-      const updateData: Record<string, any> = {
-        status: input.newStatus,
-        updatedAt: new Date(),
-      };
-
-      // Store reject reason when rejecting
-      if (input.newStatus === "rejected" && input.rejectReason) {
-        updateData.rejectReason = input.rejectReason;
-      }
-      // Clear reject reason when resubmitting
-      if (input.newStatus === "pending_review" && topic.status === "rejected") {
-        updateData.rejectReason = null;
-      }
-
-      await db.update(topics).set(updateData).where(eq(topics.id, input.id));
+      await db.update(topics).set({ status: input.newStatus, updatedAt: new Date() }).where(eq(topics.id, input.id));
       return { success: true };
     }),
 
