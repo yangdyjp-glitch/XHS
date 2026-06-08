@@ -76,7 +76,24 @@ app.use(
   })
 );
 
+// Auto-migration: ensure new columns exist
+async function runAutoMigrations() {
+  try {
+    const { db } = await import("./db.js");
+    const { sql } = await import("drizzle-orm");
+
+    // Feature 1: Add deleted_at column to topics
+    await db.execute(sql`
+      ALTER TABLE topics ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
+    `);
+    console.log("[Compass] Auto-migration: deleted_at column ensured.");
+  } catch (e: any) {
+    console.warn("[Compass] Auto-migration warning:", e.message);
+  }
+}
+
 async function startServer() {
+  await runAutoMigrations();
   if (process.env.NODE_ENV === "production") {
     const clientDist = path.resolve(__dirname, "../dist/client");
     // Hashed assets (JS/CSS) — cache for 1 year

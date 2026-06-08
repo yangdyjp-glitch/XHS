@@ -20,6 +20,7 @@ const UsersPage = lazy(() => import("./pages/UsersPage.js"));
 const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 const TypesPage = lazy(() => import("./pages/TypesPage.js"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage.js"));
+const TrashPage = lazy(() => import("./pages/TrashPage.js"));
 
 // Prefetch page chunks after initial render so they're cached for instant navigation
 function usePrefetchRoutes() {
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Switch>
           <Route path="/" component={KanbanPage} />
           <Route path="/calendar" component={CalendarPage} />
+          <Route path="/trash" component={TrashPage} />
           <Route path="/topic/:id" component={TopicDetailPage} />
           <Route path="/data-entry" component={DataEntryPage} />
           <Route path="/data-overview" component={DataOverviewPage} />

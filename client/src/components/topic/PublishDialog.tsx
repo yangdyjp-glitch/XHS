@@ -14,16 +14,14 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
   const [coverUrl, setCoverUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const publishMutation = trpc.topic.publish.useMutation({
     onSuccess: onPublished,
   });
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("只支持上传图片文件");
       return;
@@ -51,6 +49,27 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
     } finally {
       setUploading(false);
     }
+  };
+
+  // Feature 2: Drag & drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -126,12 +145,19 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full h-32 border-2 border-dashed border-hairline flex flex-col items-center justify-center text-muted hover:border-accent hover:text-accent transition-colors"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`w-full h-32 border-2 border-dashed flex flex-col items-center justify-center transition-colors ${
+                  dragging
+                    ? "border-accent bg-[#EFF6FF] text-accent"
+                    : "border-hairline text-muted hover:border-accent hover:text-accent"
+                }`}
               >
                 <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="text-sm">点击上传头图</span>
+                <span className="text-sm">{dragging ? "释放以上传图片" : "点击或拖拽上传头图"}</span>
               </button>
             )}
           </div>

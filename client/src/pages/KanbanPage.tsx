@@ -8,6 +8,7 @@ import PublishDialog from "../components/topic/PublishDialog.js";
 
 const KANBAN_COLUMNS = [
   { key: "pending_review", label: "待审批", eyebrow: "待审批" },
+  { key: "rejected", label: "已驳回", eyebrow: "已驳回" },
   { key: "approved", label: "已通过", eyebrow: "已通过" },
   { key: "writing", label: "写作中", eyebrow: "写作中" },
   { key: "published", label: "已发布", eyebrow: "已发布" },
@@ -110,10 +111,27 @@ export default function KanbanPage() {
     onSuccess: () => topicsQuery.refetch(),
   });
 
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
   const handleDelete = (topicId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm("确定要删除这个选题吗？")) {
+    if (window.confirm("确定要删除这个选题吗？删除后可在回收箱中恢复。")) {
       deleteMutation.mutate({ id: topicId });
+    }
+  };
+
+  const handleReject = (topicId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRejectingId(topicId);
+    setRejectReason("");
+  };
+
+  const confirmReject = () => {
+    if (rejectingId) {
+      statusMutation.mutate({ id: rejectingId, newStatus: "rejected", rejectReason: rejectReason || undefined } as any);
+      setRejectingId(null);
+      setRejectReason("");
     }
   };
 
@@ -140,11 +158,29 @@ export default function KanbanPage() {
   const getActionButton = (topic: NonNullable<typeof topicsQuery.data>[0]) => {
     if (topic.status === "pending_review" && isLeader) {
       return (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "approved"); }}
+            className="text-xs bg-ink text-card px-3 py-1 rounded-full hover:bg-ink-soft"
+          >
+            通过
+          </button>
+          <button
+            onClick={(e) => handleReject(topic.id, e)}
+            className="text-xs text-[#991B1B] border border-[#FECACA] px-2 py-1 rounded-full hover:bg-[#FEE2E2]"
+          >
+            驳回
+          </button>
+        </div>
+      );
+    }
+    if (topic.status === "rejected" && (topic.creatorId === user?.id || isLeader)) {
+      return (
         <button
-          onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "approved"); }}
-          className="text-[10px] bg-ink text-card px-1.5 py-0.5 rounded-full hover:bg-ink-soft"
+          onClick={(e) => { e.stopPropagation(); handleStatusChange(topic.id, "pending_review"); }}
+          className="text-xs bg-[#D97706] text-white px-3 py-1 rounded-full hover:bg-[#B45309]"
         >
-          通过
+          重新提交
         </button>
       );
     }
@@ -258,6 +294,11 @@ export default function KanbanPage() {
                       </div>
                       <span className="status-pill bg-[#DBEAFE] text-accent shrink-0" style={{ fontSize: 10, padding: "1px 6px" }}>{topic.topicType}</span>
                     </div>
+                    {topic.status === "rejected" && topic.rejectReason && (
+                      <div className="mt-1 text-[11px] text-[#991B1B] bg-[#FEF2F2] px-2 py-1 rounded-sm line-clamp-2">
+                        驳回原因：{topic.rejectReason}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {grouped[col.key]?.length === 0 && (
@@ -268,6 +309,31 @@ export default function KanbanPage() {
           ))}
         </div>
       </div>
+
+      {/* Reject reason dialog */}
+      {rejectingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20" onClick={() => setRejectingId(null)}>
+          <div className="bg-card w-full max-w-sm mx-4 border border-hairline p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <p className="eyebrow mb-1">驳回</p>
+              <h3 className="font-serif font-bold text-ink">驳回选题</h3>
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">驳回原因（选填）</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent h-24 resize-none"
+                placeholder="请填写驳回原因，方便发起人修改..."
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setRejectingId(null)} className="px-4 py-2 text-sm text-muted hover:text-ink">取消</button>
+              <button onClick={confirmReject} className="px-5 py-2 text-sm bg-[#991B1B] text-white rounded-full hover:bg-[#7F1D1D]">确认驳回</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <TopicCreateDialog

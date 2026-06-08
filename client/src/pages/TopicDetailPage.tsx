@@ -8,7 +8,7 @@ import PublishDialog from "../components/topic/PublishDialog.js";
 export default function TopicDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const { user, isLeader } = useAuth();
+  const { user, isLeader, isEditor } = useAuth();
   const topicId = Number(id);
 
   const topicQuery = trpc.topic.getById.useQuery({ id: topicId }, { enabled: !!topicId, refetchOnWindowFocus: false });
@@ -17,6 +17,7 @@ export default function TopicDetailPage() {
 
   const statusMutation = trpc.topic.updateStatus.useMutation({ onSuccess: () => topicQuery.refetch() });
   const deleteMutation = trpc.topic.delete.useMutation({ onSuccess: () => navigate("/") });
+  const updateMutation = trpc.topic.update.useMutation({ onSuccess: () => topicQuery.refetch() });
   const createNoteMutation = trpc.note.create.useMutation({ onSuccess: () => notesQuery.refetch() });
   const createCommentMutation = trpc.comment.create.useMutation({ onSuccess: () => commentsQuery.refetch() });
 
@@ -24,6 +25,12 @@ export default function TopicDetailPage() {
   const [noteForm, setNoteForm] = useState({ finalTitle: "", xhsNoteUrl: "", publishedAt: "" });
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
+  // Feature 4: Reject dialog
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  // Feature 5: Title editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const topic = topicQuery.data;
 
@@ -34,8 +41,8 @@ export default function TopicDetailPage() {
     return <div className="text-muted py-10 text-center font-serif italic">选题不存在</div>;
   }
 
-  const handleStatusChange = (newStatus: string) => {
-    statusMutation.mutate({ id: topicId, newStatus });
+  const handleStatusChange = (newStatus: string, reason?: string) => {
+    statusMutation.mutate({ id: topicId, newStatus, rejectReason: reason } as any);
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -53,11 +60,34 @@ export default function TopicDetailPage() {
     });
   };
 
+  // Feature 5: Can this user edit the title?
+  const canEditTitle = topic.status === "writing" && (isLeader || isEditor);
+
+  const handleSaveTitle = () => {
+    if (titleDraft.trim() && titleDraft !== topic.title) {
+      updateMutation.mutate({ id: topicId, title: titleDraft.trim() });
+    }
+    setEditingTitle(false);
+  };
+
   const getStatusAction = () => {
     if (topic.status === "pending_review" && isLeader) {
       return (
-        <button onClick={() => handleStatusChange("approved")} disabled={statusMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
-          {statusMutation.isPending ? "处理中..." : "审批通过"}
+        <div className="flex items-center gap-2">
+          <button onClick={() => handleStatusChange("approved")} disabled={statusMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
+            {statusMutation.isPending ? "处理中..." : "审批通过"}
+          </button>
+          <button onClick={() => { setShowRejectDialog(true); setRejectReason(""); }} className="text-sm text-[#991B1B] border border-[#FECACA] px-4 py-1.5 rounded-full hover:bg-[#FEE2E2]">
+            驳回
+          </button>
+        </div>
+      );
+    }
+    // Feature 4: Rejected topics can be resubmitted
+    if (topic.status === "rejected" && (topic.creatorId === user?.id || isLeader)) {
+      return (
+        <button onClick={() => handleStatusChange("pending_review")} disabled={statusMutation.isPending} className="bg-[#D97706] text-white px-4 py-1.5 text-sm rounded-full hover:bg-[#B45309] disabled:opacity-50">
+          {statusMutation.isPending ? "处理中..." : "重新提交审核"}
         </button>
       );
     }
@@ -87,10 +117,32 @@ export default function TopicDetailPage() {
         </button>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h1 className="editorial-heading text-2xl">{topic.title}</h1>
+            {/* Feature 5: Inline title editing */}
+            {editingTitle ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveTitle(); if (e.key === "Escape") setEditingTitle(false); }}
+                  className="editorial-heading text-2xl flex-1 border-b-2 border-accent bg-transparent focus:outline-none py-1"
+                  autoFocus
+                />
+                <button onClick={handleSaveTitle} className="text-sm text-accent hover:text-accent-deep px-2">保存</button>
+                <button onClick={() => setEditingTitle(false)} className="text-sm text-muted hover:text-ink px-2">取消</button>
+              </div>
+            ) : (
+              <h1
+                className={`editorial-heading text-2xl ${canEditTitle ? "cursor-pointer hover:text-accent transition-colors" : ""}`}
+                onClick={canEditTitle ? () => { setEditingTitle(true); setTitleDraft(topic.title); } : undefined}
+                title={canEditTitle ? "点击编辑标题" : undefined}
+              >
+                {topic.title}
+                {canEditTitle && <span className="text-muted text-sm ml-2 font-sans font-normal">可编辑</span>}
+              </h1>
+            )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {topic.status !== "published" && (
-                <span className="status-pill bg-accent text-white">
+                <span className={`status-pill ${topic.status === "rejected" ? "bg-[#991B1B]" : "bg-accent"} text-white`}>
                   {(TOPIC_STATUS as Record<string, string>)[topic.status]}
                 </span>
               )}
@@ -104,7 +156,7 @@ export default function TopicDetailPage() {
             {(isLeader || topic.creatorId === user?.id) && (
               <button
                 onClick={() => {
-                  if (window.confirm("确定要删除这个选题吗？删除后无法恢复。")) {
+                  if (window.confirm("确定要删除这个选题吗？删除后可在回收箱中恢复。")) {
                     deleteMutation.mutate({ id: topicId });
                   }
                 }}
@@ -117,6 +169,14 @@ export default function TopicDetailPage() {
         </div>
         <div className="h-[1.5px] bg-ink mt-4" />
       </div>
+
+      {/* Feature 4: Reject reason display */}
+      {topic.status === "rejected" && topic.rejectReason && (
+        <div className="bg-[#FEF2F2] border border-[#FECACA] p-4 text-sm">
+          <p className="eyebrow text-[#991B1B] mb-1">驳回原因</p>
+          <p className="text-[#991B1B]">{topic.rejectReason}</p>
+        </div>
+      )}
 
       {/* Topic Info */}
       <div className="card-surface p-5 space-y-3">
@@ -182,7 +242,8 @@ export default function TopicDetailPage() {
                       查看笔记
                     </a>
                   )}
-                  <span>{new Date(note.publishedAt).toLocaleDateString("zh-CN")}</span>
+                  {/* Feature 3: Clearly label as actual publish time */}
+                  <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN")}</span>
                 </div>
               </div>
             </div>
@@ -232,6 +293,36 @@ export default function TopicDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Feature 4: Reject reason dialog */}
+      {showRejectDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20" onClick={() => setShowRejectDialog(false)}>
+          <div className="bg-card w-full max-w-sm mx-4 border border-hairline p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <p className="eyebrow mb-1">驳回</p>
+              <h3 className="font-serif font-bold text-ink">驳回选题</h3>
+            </div>
+            <div>
+              <label className="eyebrow block mb-1.5">驳回原因（选填）</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent h-24 resize-none"
+                placeholder="请填写驳回原因，方便发起人修改..."
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowRejectDialog(false)} className="px-4 py-2 text-sm text-muted hover:text-ink">取消</button>
+              <button
+                onClick={() => { handleStatusChange("rejected", rejectReason || undefined); setShowRejectDialog(false); }}
+                className="px-5 py-2 text-sm bg-[#991B1B] text-white rounded-full hover:bg-[#7F1D1D]"
+              >
+                确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPublish && topic && (
         <PublishDialog

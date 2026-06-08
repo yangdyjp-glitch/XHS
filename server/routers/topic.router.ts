@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, or, ilike, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, desc, isNull, isNotNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
@@ -18,6 +18,9 @@ export const topicRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const conditions = [];
+
+      // Feature 1: Exclude soft-deleted topics
+      conditions.push(isNull(topics.deletedAt));
 
       if (ctx.user.role === "teacher" || ctx.user.role === "editor") {
         const ownAccounts = await db
@@ -71,6 +74,76 @@ export const topicRouter = router({
         .orderBy(desc(topics.updatedAt));
     }),
 
+  // Feature 1: List soft-deleted topics (trash)
+  listDeleted: protectedProcedure.query(async ({ ctx }) => {
+    const conditions = [isNotNull(topics.deletedAt)];
+
+    if (ctx.user.role === "teacher" || ctx.user.role === "editor") {
+      const ownAccounts = await db
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(eq(accounts.ownerId, ctx.user.id));
+      const ownIds = ownAccounts.map((a) => a.id);
+      if (ownIds.length > 0) {
+        conditions.push(inArray(topics.accountId, ownIds));
+      } else {
+        return [];
+      }
+    }
+
+    return db
+      .select({
+        id: topics.id,
+        title: topics.title,
+        accountName: accounts.accountName,
+        accountColor: accounts.mainColor,
+        creatorName: users.name,
+        topicType: topics.topicType,
+        status: topics.status,
+        deletedAt: topics.deletedAt,
+        createdAt: topics.createdAt,
+      })
+      .from(topics)
+      .leftJoin(accounts, eq(topics.accountId, accounts.id))
+      .leftJoin(users, eq(topics.creatorId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(topics.deletedAt));
+  }),
+
+  // Feature 1: Restore from trash
+  restore: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
+      if (!topic.deletedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "该选题未在回收箱中" });
+
+      if (ctx.user.role !== "leader" && topic.creatorId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "没有权限恢复" });
+      }
+
+      await db.update(topics).set({ deletedAt: null, updatedAt: new Date() }).where(eq(topics.id, input.id));
+      return { success: true };
+    }),
+
+  // Feature 1: Permanent delete (leader only)
+  permanentDelete: leaderProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
+
+      const relatedNotes = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, input.id));
+      if (relatedNotes.length > 0) {
+        const noteIds = relatedNotes.map((n) => n.id);
+        await db.delete(metricSnapshots).where(inArray(metricSnapshots.noteId, noteIds));
+        await db.delete(notes).where(eq(notes.topicId, input.id));
+      }
+      await db.delete(comments).where(eq(comments.topicId, input.id));
+      await db.delete(topics).where(eq(topics.id, input.id));
+      return { success: true };
+    }),
+
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
@@ -89,6 +162,7 @@ export const topicRouter = router({
           plannedPublishDate: topics.plannedPublishDate,
           priority: topics.priority,
           rejectReason: topics.rejectReason,
+          deletedAt: topics.deletedAt,
           createdAt: topics.createdAt,
           updatedAt: topics.updatedAt,
         })
@@ -118,7 +192,6 @@ export const topicRouter = router({
       let accountId = input.accountId;
 
       if (!accountId) {
-        // Fallback: find first owned account
         const [account] = await db
           .select({ id: accounts.id })
           .from(accounts)
@@ -130,7 +203,6 @@ export const topicRouter = router({
         }
         accountId = account.id;
       } else {
-        // Verify the teacher owns this account
         const [account] = await db
           .select({ id: accounts.id })
           .from(accounts)
@@ -159,6 +231,7 @@ export const topicRouter = router({
       return topic;
     }),
 
+  // Feature 5: Leaders and editors can edit title of "writing" topics (no re-approval needed)
   update: protectedProcedure
     .input(
       z.object({
@@ -175,6 +248,19 @@ export const topicRouter = router({
       const [topic] = await db.select().from(topics).where(eq(topics.id, id)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
 
+      // Leaders can always edit
+      if (ctx.user.role === "leader") {
+        await db.update(topics).set({ ...updates, updatedAt: new Date() }).where(eq(topics.id, id));
+        return { success: true };
+      }
+
+      // Editors can edit title of "writing" topics even if not creator
+      if (ctx.user.role === "editor" && topic.status === "writing" && input.title && Object.keys(updates).length === 1) {
+        await db.update(topics).set({ title: input.title, updatedAt: new Date() }).where(eq(topics.id, id));
+        return { success: true };
+      }
+
+      // Teachers/editors can edit their own topics
       if ((ctx.user.role === "teacher" || ctx.user.role === "editor") && topic.creatorId !== ctx.user.id) {
         throw new TRPCError({ code: "FORBIDDEN", message: "只能编辑自己创建的选题" });
       }
@@ -191,15 +277,25 @@ export const topicRouter = router({
       return { success: true };
     }),
 
-  // 状态流转
+  // Feature 4: Status transitions now support rejected ↔ pending_review
   updateStatus: protectedProcedure
-    .input(z.object({ id: z.number(), newStatus: z.string() }))
+    .input(z.object({
+      id: z.number(),
+      newStatus: z.string(),
+      rejectReason: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
 
       const rules: Record<string, { to: string; by: string }[]> = {
-        pending_review: [{ to: "approved", by: "leader" }],
+        pending_review: [
+          { to: "approved", by: "leader" },
+          { to: "rejected", by: "leader" },
+        ],
+        rejected: [
+          { to: "pending_review", by: "teacher" },
+        ],
         approved: [{ to: "writing", by: "teacher" }],
         writing: [{ to: "published", by: "teacher" }],
       };
@@ -217,15 +313,25 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "只能操作自己的选题" });
       }
 
-      await db
-        .update(topics)
-        .set({ status: input.newStatus, updatedAt: new Date() })
-        .where(eq(topics.id, input.id));
+      const updateData: Record<string, any> = {
+        status: input.newStatus,
+        updatedAt: new Date(),
+      };
 
+      // Store reject reason when rejecting
+      if (input.newStatus === "rejected" && input.rejectReason) {
+        updateData.rejectReason = input.rejectReason;
+      }
+      // Clear reject reason when resubmitting
+      if (input.newStatus === "pending_review" && topic.status === "rejected") {
+        updateData.rejectReason = null;
+      }
+
+      await db.update(topics).set(updateData).where(eq(topics.id, input.id));
       return { success: true };
     }),
 
-  // 发布：老师填写头图+链接，创建笔记记录并将状态改为已发布
+  // Feature 1: Soft delete instead of hard delete
   publish: protectedProcedure
     .input(
       z.object({
@@ -247,7 +353,6 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "只能发布自己的选题" });
       }
 
-      // Prevent duplicate notes
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
       if (existing.length === 0) {
         await db.insert(notes).values({
@@ -268,6 +373,7 @@ export const topicRouter = router({
       return { success: true };
     }),
 
+  // Feature 1: Soft delete
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -278,27 +384,24 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "没有权限删除" });
       }
 
-      const relatedNotes = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, input.id));
-      if (relatedNotes.length > 0) {
-        const noteIds = relatedNotes.map((n) => n.id);
-        await db.delete(metricSnapshots).where(inArray(metricSnapshots.noteId, noteIds));
-        await db.delete(notes).where(eq(notes.topicId, input.id));
-      }
-      await db.delete(comments).where(eq(comments.topicId, input.id));
-      await db.delete(topics).where(eq(topics.id, input.id));
+      // Soft delete: set deletedAt timestamp
+      await db
+        .update(topics)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(topics.id, input.id));
+
       return { success: true };
     }),
 
-  // 获取所有已有的选题类型（供下拉选择）
   listTypes: protectedProcedure.query(async () => {
     const result = await db
       .selectDistinct({ topicType: topics.topicType })
       .from(topics)
+      .where(isNull(topics.deletedAt))
       .orderBy(topics.topicType);
     return result.map((r) => r.topicType);
   }),
 
-  // 获取类型及其选题数量（含预设类型）
   listTypesWithCount: leaderProcedure.query(async () => {
     const dbResult = await db
       .select({
@@ -306,12 +409,12 @@ export const topicRouter = router({
         count: sql<number>`count(*)::int`,
       })
       .from(topics)
+      .where(isNull(topics.deletedAt))
       .groupBy(topics.topicType)
       .orderBy(topics.topicType);
 
     const dbMap = new Map(dbResult.map((r) => [r.topicType, r.count]));
 
-    // Merge preset types (show with count 0 if unused)
     for (const preset of PRESET_TOPIC_TYPES) {
       if (!dbMap.has(preset)) {
         dbMap.set(preset, 0);
@@ -323,7 +426,6 @@ export const topicRouter = router({
       .sort((a, b) => a.topicType.localeCompare(b.topicType, "zh-CN"));
   }),
 
-  // 重命名类型（也可用于合并：将A重命名为已有的B）
   renameType: leaderProcedure
     .input(z.object({ oldType: z.string().min(1), newType: z.string().min(1) }))
     .mutation(async ({ input }) => {
@@ -335,7 +437,6 @@ export const topicRouter = router({
       return { success: true, updatedCount: affected.length };
     }),
 
-  // 删除类型：将该类型的所有选题改为"未分类"
   deleteType: leaderProcedure
     .input(z.object({ topicType: z.string().min(1) }))
     .mutation(async ({ input }) => {

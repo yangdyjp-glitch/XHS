@@ -6,6 +6,7 @@ import { cn } from "../../lib/utils.js";
 const NAV_COMMON = [
   { path: "/", label: "选题看板", sub: "KANBAN" },
   { path: "/calendar", label: "发布日历", sub: "CALENDAR" },
+  { path: "/trash", label: "回收箱", sub: "TRASH" },
 ];
 
 const NAV_TEACHER = [

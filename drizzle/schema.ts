@@ -76,6 +76,7 @@ export const topics = pgTable("topics", {
   priority: varchar("priority", { length: 10 }).default("normal"),
   parentTopicId: integer("parent_topic_id"),
   rejectReason: text("reject_reason"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
