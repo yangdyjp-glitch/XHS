@@ -4,11 +4,12 @@ import { trpc } from "../../lib/trpc.js";
 interface Props {
   topicId: number;
   topicTitle: string;
+  mode?: "publish" | "republish";
   onClose: () => void;
   onPublished: () => void;
 }
 
-export default function PublishDialog({ topicId, topicTitle, onClose, onPublished }: Props) {
+export default function PublishDialog({ topicId, topicTitle, mode = "publish", onClose, onPublished }: Props) {
   const [noteUrl, setNoteUrl] = useState("");
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState("");
@@ -17,9 +18,10 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const publishMutation = trpc.topic.publish.useMutation({
-    onSuccess: onPublished,
-  });
+  const publishMutation = trpc.topic.publish.useMutation({ onSuccess: onPublished });
+  const republishMutation = trpc.topic.republish.useMutation({ onSuccess: onPublished });
+  const activeMutation = mode === "republish" ? republishMutation : publishMutation;
+  const isPending = activeMutation.isPending;
 
   const uploadFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -75,19 +77,19 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (publishMutation.isPending) return;
+    if (isPending) return;
 
     if (!noteUrl.trim()) {
       setError("请填写笔记链接");
       return;
     }
 
-    publishMutation.mutate({
+    activeMutation.mutate({
       topicId,
       xhsNoteUrl: noteUrl.trim(),
       coverImage: coverUrl || undefined,
     }, {
-      onError: (err) => setError(err.message || "发布失败"),
+      onError: (err: any) => setError(err.message || "操作失败"),
     });
   };
 
@@ -98,8 +100,8 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-hairline">
-          <p className="eyebrow mb-0.5">发布</p>
-          <h2 className="font-serif font-bold text-ink text-lg">发布笔记</h2>
+          <p className="eyebrow mb-0.5">{mode === "republish" ? "重新上传" : "发布"}</p>
+          <h2 className="font-serif font-bold text-ink text-lg">{mode === "republish" ? "重新上传笔记" : "发布笔记"}</h2>
           <p className="text-sm text-muted mt-1 truncate">{topicTitle}</p>
         </div>
 
@@ -182,10 +184,12 @@ export default function PublishDialog({ topicId, topicTitle, onClose, onPublishe
             </button>
             <button
               type="submit"
-              disabled={publishMutation.isPending || uploading}
+              disabled={isPending || uploading}
               className="px-5 py-2 text-sm bg-[#166534] text-white rounded-full hover:bg-[#15803D] disabled:opacity-50 transition-colors"
             >
-              {publishMutation.isPending ? "发布中..." : "确认发布"}
+              {isPending
+                ? (mode === "republish" ? "上传中..." : "发布中...")
+                : (mode === "republish" ? "确认上传" : "确认发布")}
             </button>
           </div>
         </form>

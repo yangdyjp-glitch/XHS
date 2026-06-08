@@ -180,11 +180,15 @@ export default function TopicDetailPage() {
       <div className="card-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
           <p className="eyebrow">关联笔记</p>
-          {(topic.status === "published" || topic.status === "writing") && (
+          {topic.status === "published" ? (
+            <button onClick={() => setShowPublish(true)} className="mono-data text-accent hover:text-accent-deep">
+              重新上传
+            </button>
+          ) : topic.status === "writing" ? (
             <button onClick={() => setShowNoteForm(!showNoteForm)} className="mono-data text-accent hover:text-accent-deep">
               {showNoteForm ? "取消" : "+ 添加笔记"}
             </button>
-          )}
+          ) : null}
         </div>
 
         {showNoteForm && (
@@ -273,6 +277,7 @@ export default function TopicDetailPage() {
       {showPublish && topic && (
         <PublishDialog
           topicId={topic.id} topicTitle={topic.title}
+          mode={topic.status === "published" ? "republish" : "publish"}
           onClose={() => setShowPublish(false)}
           onPublished={() => { setShowPublish(false); topicQuery.refetch(); notesQuery.refetch(); }}
         />

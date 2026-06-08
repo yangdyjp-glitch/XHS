@@ -351,6 +351,50 @@ export const topicRouter = router({
       return { success: true };
     }),
 
+  // Republish: overwrite existing note with new info
+  republish: protectedProcedure
+    .input(
+      z.object({
+        topicId: z.number(),
+        xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
+        coverImage: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [topic] = await db.select().from(topics).where(eq(topics.id, input.topicId)).limit(1);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
+      if (topic.status !== "published") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "只有已发布的选题才能重新上传" });
+      }
+      if (topic.creatorId !== ctx.user.id && ctx.user.role !== "leader") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "没有权限操作" });
+      }
+
+      const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
+      if (existing.length > 0) {
+        // Overwrite existing note
+        await db.update(notes).set({
+          finalTitle: topic.title,
+          xhsNoteUrl: input.xhsNoteUrl,
+          coverImage: input.coverImage || null,
+          publishedAt: new Date(),
+        }).where(eq(notes.topicId, topic.id));
+      } else {
+        // Create if somehow missing
+        await db.insert(notes).values({
+          topicId: topic.id,
+          accountId: topic.accountId,
+          finalTitle: topic.title,
+          xhsNoteUrl: input.xhsNoteUrl,
+          coverImage: input.coverImage || null,
+          publishedAt: new Date(),
+        });
+      }
+
+      await db.update(topics).set({ updatedAt: new Date() }).where(eq(topics.id, input.topicId));
+      return { success: true };
+    }),
+
   // Feature 1: Soft delete
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
