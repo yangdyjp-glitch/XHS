@@ -1,9 +1,10 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { trpc, createTRPCClient } from "./lib/trpc.js";
 import { useAuth } from "./hooks/useAuth.js";
 import AppShell from "./components/layout/AppShell.js";
+import ErrorBoundary from "./components/ErrorBoundary.js";
 import LoginPage from "./pages/LoginPage.js";
 import ChangePasswordPage from "./pages/ChangePasswordPage.js";
 import AccountSelectPage from "./pages/AccountSelectPage.js";
@@ -28,6 +29,7 @@ function usePrefetchRoutes() {
     const timer = setTimeout(() => {
       import("./pages/TopicDetailPage.js");
       import("./pages/TrashPage.js");
+      import("./pages/CalendarPage.js");
       import("./pages/DataEntryPage.js");
       import("./pages/RecommendationPage.js");
       import("./pages/ReviewPage.js");
@@ -59,6 +61,7 @@ function usePrefetchData() {
 
 function AppRoutes() {
   const { user, isLoading, isTeacher, selectedAccountId } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -84,6 +87,7 @@ function AppRoutes() {
   return (
     <AppShell>
       <Prefetcher />
+      <ErrorBoundary key={location}>
       <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
         <Switch>
           <Route path="/" component={KanbanPage} />
@@ -103,6 +107,7 @@ function AppRoutes() {
           </Route>
         </Switch>
       </Suspense>
+      </ErrorBoundary>
     </AppShell>
   );
 }
