@@ -80,6 +80,7 @@ function AccountFilter({ accounts, selected, onChange }: {
 export default function KanbanPage() {
   const { user, isLeader, isTeacher, selectedAccountId } = useAuth();
   const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
   const [showCreate, setShowCreate] = useState(false);
   const [publishTopic, setPublishTopic] = useState<{ id: number; title: string } | null>(null);
   const [filterAccounts, setFilterAccounts] = useState<number[]>([]);
@@ -235,6 +236,11 @@ export default function KanbanPage() {
                   <div
                     key={topic.id}
                     onClick={() => navigate(`/topic/${topic.id}`)}
+                    onMouseEnter={() => {
+                      utils.topic.getById.prefetch({ id: topic.id });
+                      utils.note.listByTopic.prefetch({ topicId: topic.id });
+                      utils.comment.listByTopic.prefetch({ topicId: topic.id });
+                    }}
                     className="card-surface px-2.5 py-1.5 cursor-pointer hover:bg-[#F0F4FA] transition-colors"
                   >
                     <div className="flex items-center justify-between gap-1">

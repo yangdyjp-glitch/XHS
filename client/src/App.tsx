@@ -26,6 +26,7 @@ const TrashPage = lazy(() => import("./pages/TrashPage.js"));
 function usePrefetchRoutes() {
   useEffect(() => {
     const timer = setTimeout(() => {
+      import("./pages/TopicDetailPage.js");
       import("./pages/DataEntryPage.js");
       import("./pages/RecommendationPage.js");
       import("./pages/ReviewPage.js");
