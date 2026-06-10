@@ -147,7 +147,7 @@ export default function DataOverviewPage() {
               <tr className="border-b border-ink">
                 <th className="px-3 py-2.5 text-left eyebrow">笔记</th>
                 <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
-                <th className="px-2 py-2.5 text-center eyebrow w-16">天龄</th>
+                <th className="px-2 py-2.5 text-center eyebrow w-20">发布时长</th>
                 <th className="px-2 py-1.5 text-center w-28">
                   <div className="eyebrow mb-1">天数</div>
                   <div className="flex gap-1 justify-center">
