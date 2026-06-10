@@ -82,6 +82,7 @@ export default function DataOverviewPage() {
   const [filterEnd, setFilterEnd] = useState(() => toYMD(new Date()));
   const [expandedNote, setExpandedNote] = useState<number | null>(null);
   const [snapshotDay, setSnapshotDay] = useState<number>(SNAPSHOT_DAYS[0]); // 当前查看的天数（T+N）
+  const [ageSort, setAgeSort] = useState<"asc" | "desc">("asc"); // asc=发布时长升序(发布时间从近到远) desc=从远到近
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const notesQuery = trpc.note.listWithMetrics.useQuery(
     { accountIds: filterAccounts.length > 0 ? filterAccounts : undefined },
@@ -90,13 +91,19 @@ export default function DataOverviewPage() {
 
   const filteredNotes = useMemo(() => {
     if (!notesQuery.data) return undefined;
-    return notesQuery.data.filter((n) => {
+    const filtered = notesQuery.data.filter((n) => {
       const pub = toYMD(new Date(n.publishedAt));
       if (filterStart && pub < filterStart) return false;
       if (filterEnd && pub > filterEnd) return false;
       return true;
     });
-  }, [notesQuery.data, filterStart, filterEnd]);
+    // 按发布时间排序：asc=发布时长从小到大（最新发布在前，发布时间从近到远）；desc 相反
+    return [...filtered].sort((a, b) => {
+      const ta = new Date(a.publishedAt).getTime();
+      const tb = new Date(b.publishedAt).getTime();
+      return ageSort === "asc" ? tb - ta : ta - tb;
+    });
+  }, [notesQuery.data, filterStart, filterEnd, ageSort]);
 
   return (
     <div>
@@ -147,7 +154,16 @@ export default function DataOverviewPage() {
               <tr className="border-b border-ink">
                 <th className="px-3 py-2.5 text-left eyebrow">笔记</th>
                 <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
-                <th className="px-2 py-2.5 text-center eyebrow w-20">发布时长</th>
+                <th className="px-2 py-2.5 text-center w-24">
+                  <button
+                    onClick={() => setAgeSort((s) => (s === "asc" ? "desc" : "asc"))}
+                    title={ageSort === "asc" ? "当前：发布时间从近到远（点击切换为从远到近）" : "当前：发布时间从远到近（点击切换为从近到远）"}
+                    className="eyebrow inline-flex items-center gap-0.5 hover:text-ink transition-colors cursor-pointer"
+                  >
+                    发布时长
+                    <span className="text-[9px] leading-none">{ageSort === "asc" ? "▲" : "▼"}</span>
+                  </button>
+                </th>
                 <th className="px-2 py-1.5 text-center w-28">
                   <div className="eyebrow mb-1">天数</div>
                   <div className="flex gap-1 justify-center">
