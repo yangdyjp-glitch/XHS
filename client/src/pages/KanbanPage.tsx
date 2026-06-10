@@ -94,6 +94,30 @@ export default function KanbanPage() {
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   });
+  const [collapsedCols, setCollapsedCols] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("kanban_collapsed_cols");
+      return new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("kanban_collapsed_cols", JSON.stringify([...collapsedCols]));
+    } catch {
+      /* ignore */
+    }
+  }, [collapsedCols]);
+
+  const toggleCollapse = (key: string) =>
+    setCollapsedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const topicsQuery = trpc.topic.list.useQuery(
     {
@@ -223,12 +247,52 @@ export default function KanbanPage() {
       {/* Board */}
       <div className="flex-1 overflow-x-auto">
         <div className="flex gap-5 h-full pb-4">
-          {KANBAN_COLUMNS.map((col) => (
+          {KANBAN_COLUMNS.map((col) => {
+            const count = grouped[col.key]?.length || 0;
+            if (collapsedCols.has(col.key)) {
+              return (
+                <div key={col.key} className="w-10 shrink-0 flex flex-col">
+                  {/* Collapsed header */}
+                  <div className="flex items-center justify-center mb-3">
+                    <button
+                      onClick={() => toggleCollapse(col.key)}
+                      title="展开"
+                      className="text-muted hover:text-ink transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="h-px bg-ink mb-3" />
+                  <button
+                    onClick={() => toggleCollapse(col.key)}
+                    title="展开"
+                    className="flex-1 w-full flex flex-col items-center gap-2 pt-1 text-muted hover:text-ink hover:bg-[#F0F4FA] transition-colors"
+                  >
+                    <span className="font-mono text-xs">{count}</span>
+                    <span className="eyebrow" style={{ writingMode: "vertical-rl" }}>{col.eyebrow}</span>
+                  </button>
+                </div>
+              );
+            }
+            return (
             <div key={col.key} className="flex-1 min-w-[220px] flex flex-col">
               {/* Column header */}
               <div className="flex items-center justify-between mb-3">
                 <span className="eyebrow">{col.eyebrow}</span>
-                <span className="font-mono text-xs text-muted">{grouped[col.key]?.length || 0}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted">{count}</span>
+                  <button
+                    onClick={() => toggleCollapse(col.key)}
+                    title="收起"
+                    className="text-muted hover:text-ink transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="h-px bg-ink mb-3" />
 
@@ -273,7 +337,8 @@ export default function KanbanPage() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
