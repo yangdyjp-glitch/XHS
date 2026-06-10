@@ -81,6 +81,7 @@ export default function DataOverviewPage() {
   const [filterStart, setFilterStart] = useState(() => toYMD(new Date(Date.now() - 30 * 86400000)));
   const [filterEnd, setFilterEnd] = useState(() => toYMD(new Date()));
   const [expandedNote, setExpandedNote] = useState<number | null>(null);
+  const [snapshotDay, setSnapshotDay] = useState<number>(SNAPSHOT_DAYS[0]); // 当前查看的天数（T+N）
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const notesQuery = trpc.note.listWithMetrics.useQuery(
     { accountIds: filterAccounts.length > 0 ? filterAccounts : undefined },
@@ -146,8 +147,24 @@ export default function DataOverviewPage() {
               <tr className="border-b border-ink">
                 <th className="px-3 py-2.5 text-left eyebrow">笔记</th>
                 <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
-                <th className="px-2 py-2.5 text-center eyebrow w-16">天数</th>
-                <th className="px-2 py-2.5 text-center eyebrow w-20">快照</th>
+                <th className="px-2 py-2.5 text-center eyebrow w-16">天龄</th>
+                <th className="px-2 py-1.5 text-center w-28">
+                  <div className="eyebrow mb-1">天数</div>
+                  <div className="flex gap-1 justify-center">
+                    {SNAPSHOT_DAYS.map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setSnapshotDay(d)}
+                        title={`查看 T+${d} 天数据`}
+                        className={`font-mono text-[10px] px-1.5 py-0.5 rounded-sm transition-colors ${
+                          snapshotDay === d ? "bg-ink text-card" : "bg-paper-alt text-muted hover:text-ink"
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </th>
                 <th className="px-2 py-2.5 text-right eyebrow">曝光</th>
                 <th className="px-2 py-2.5 text-right eyebrow">阅读</th>
                 <th className="px-2 py-2.5 text-right eyebrow">点赞</th>
@@ -161,9 +178,9 @@ export default function DataOverviewPage() {
             <tbody className="divide-y divide-hairline">
               {filteredNotes.map((note) => {
                 const age = daysSincePublish(note.publishedAt);
-                const latest = note.metrics.length > 0 ? note.metrics[note.metrics.length - 1] : null;
-                const engagement = latest && latest.impression > 0
-                  ? (((latest.likeCount + latest.collect + latest.commentCount + (latest.shareCount ?? 0)) / latest.impression) * 100).toFixed(1)
+                const snap = note.metrics.find((m) => m.daysSincePublish === snapshotDay) || null;
+                const engagement = snap && snap.impression > 0
+                  ? (((snap.likeCount + snap.collect + snap.commentCount + (snap.shareCount ?? 0)) / snap.impression) * 100).toFixed(1)
                   : null;
                 const hasMultiple = note.metrics.length > 1;
                 const isExpanded = expandedNote === note.id;
@@ -203,14 +220,14 @@ export default function DataOverviewPage() {
                         })}
                       </div>
                     </td>
-                    {latest ? (
+                    {snap ? (
                       <>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#2563EB]">{latest.impression.toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#059669]">{latest.view.toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#DC2626]">{latest.likeCount.toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#D97706]">{latest.collect.toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#7C3AED]">{latest.commentCount.toLocaleString()}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-[#0891B2]">{(latest.shareCount ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#2563EB]">{snap.impression.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#059669]">{snap.view.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#DC2626]">{snap.likeCount.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#D97706]">{snap.collect.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#7C3AED]">{snap.commentCount.toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#0891B2]">{(snap.shareCount ?? 0).toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-right font-mono text-accent font-medium">
                           {engagement}%
                           {hasMultiple && <span className="text-muted text-[9px] ml-1">{isExpanded ? "▲" : "▼"}</span>}
@@ -230,7 +247,24 @@ export default function DataOverviewPage() {
                         </td>
                       </>
                     ) : (
-                      <td colSpan={8} className="px-2 py-2.5 text-center text-muted text-xs italic">暂无数据</td>
+                      <>
+                        <td colSpan={7} className="px-2 py-2.5 text-center text-muted text-xs italic">
+                          暂无{snapshotDay}天数据
+                        </td>
+                        <td className="px-2 py-2.5 text-center pr-3">
+                          {note.xhsNoteUrl && (
+                            <a
+                              href={note.xhsNoteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
+                            >
+                              查看
+                            </a>
+                          )}
+                        </td>
+                      </>
                     )}
                   </tr>
                 );
