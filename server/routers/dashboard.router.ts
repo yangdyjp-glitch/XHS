@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, gte, desc, sql } from "drizzle-orm";
+import { eq, gte, desc, sql, isNull } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { accounts, users, notes, topics, metricSnapshots } from "../../drizzle/schema.js";
@@ -113,6 +113,7 @@ export const dashboardRouter = router({
     const topicCounts = await db
       .select({ status: topics.status, count: sql<number>`count(*)::int` })
       .from(topics)
+      .where(isNull(topics.deletedAt)) // 排除回收箱中的选题，口径与看板一致
       .groupBy(topics.status);
 
     const accountStats = accts.map((acct) => {

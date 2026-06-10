@@ -123,7 +123,9 @@ export default function KanbanPage() {
     for (const col of KANBAN_COLUMNS) map[col.key] = [];
     if (topicsQuery.data) {
       for (const t of topicsQuery.data) {
-        if (filterStart || filterEnd) {
+        // 日期筛选只作用于「已发布」列；待审批/已通过/写作中等进行中的列始终全部显示，
+        // 避免计划发布在其他月份（或暂未填日期）的选题被隐藏导致漏审批，口径与总览一致。
+        if (t.status === "published" && (filterStart || filterEnd)) {
           if (!t.plannedPublishDate) continue;
           if (filterStart && t.plannedPublishDate < filterStart) continue;
           if (filterEnd && t.plannedPublishDate > filterEnd) continue;
