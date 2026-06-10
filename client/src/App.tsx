@@ -45,18 +45,27 @@ function usePrefetchRoutes() {
 // Prefetch API data that slow pages need, so it's cached before navigation
 function usePrefetchData() {
   const utils = trpc.useUtils();
+  const { isTeacher, selectedAccountId } = useAuth();
   useEffect(() => {
     const timer = setTimeout(() => {
+      // 所有角色都可能进入的页面
+      utils.account.list.prefetch();
+      // 选题看板主查询：按当前角色的初始参数预热（与页面首个请求的 key 对齐）
+      utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {});
       utils.topic.listDeleted.prefetch();
       utils.note.listForDataEntry.prefetch();
       utils.event.upcoming.prefetch({ days: 365 });
       utils.review.listRecommendations.prefetch({ limit: 5 });
       utils.review.list.prefetch({ type: "weekly", limit: 5 });
-      utils.dashboard.overview.prefetch();
-      utils.dashboard.rankings.prefetch({ period: "30" });
+      // 仅 leader 可见的页面（listWithMetrics 是 leaderProcedure，老师预取会 403）
+      if (!isTeacher) {
+        utils.note.listWithMetrics.prefetch({}); // 数据情况主查询
+        utils.dashboard.overview.prefetch();
+        utils.dashboard.rankings.prefetch({ period: "30" });
+      }
     }, 500);
     return () => clearTimeout(timer);
-  }, [utils]);
+  }, [utils, isTeacher, selectedAccountId]);
 }
 
 function AppRoutes() {
@@ -120,7 +129,14 @@ function Prefetcher() {
 
 export default function App() {
   const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 30 * 60 * 1000 } },
+    defaultOptions: {
+      queries: {
+        retry: false,
+        refetchOnWindowFocus: false,
+        staleTime: 30 * 60 * 1000, // 30 分钟内视为新鲜，不重新请求
+        gcTime: 60 * 60 * 1000,    // 缓存保留 1 小时，避免离开页面 5 分钟后被回收导致重新加载
+      },
+    },
   }));
   const [trpcClient] = useState(() => createTRPCClient());
 
