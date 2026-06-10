@@ -50,28 +50,38 @@ function usePrefetchData() {
   const utils = trpc.useUtils();
   const { isTeacher, selectedAccountId } = useAuth();
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // —— 所有角色都可进入的页面 ——
-      utils.account.list.prefetch();                                                          // 账号下拉（多页共用）
-      utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {}); // 选题看板 + 发布日历
-      utils.topic.listDeleted.prefetch();                                                     // 回收箱
-      utils.note.listForDataEntry.prefetch();                                                 // 数据录入
-      utils.review.list.prefetch({ type: isTeacher ? "monthly" : "weekly", limit: 20 });      // 复盘报告（默认标签）
-      // 下期建议页用到的几个查询
-      utils.event.upcoming.prefetch({ days: 365 });
-      utils.review.listRecommendations.prefetch({ limit: 5 });
-      utils.review.listRejectedTitles.prefetch();
-      utils.review.list.prefetch({ limit: 10 });
-      // —— 仅 leader 可见的页面 ——
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      // ⚠️ 顺序预取（一次只发一个请求）。一次性并发会把后端连接池 / 单实例 CPU 打满，
+      // 反而让真正点击的页面排队等待——之前 10s+ 卡顿就是这么来的。
+      // 顺序安排：常用轻量页在前，最重的查询（数据情况/总览）放最后，
+      // 这样轻量页能尽快预热，重查询也不会阻塞它们。
+      const tasks: Array<() => Promise<unknown>> = [
+        () => utils.account.list.prefetch(),                                                            // 账号下拉（多页共用）
+        () => utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {}), // 选题看板 + 发布日历
+        () => utils.review.list.prefetch({ type: isTeacher ? "monthly" : "weekly", limit: 20 }),        // 复盘报告（默认标签）
+        () => utils.review.listRecommendations.prefetch({ limit: 5 }),                                  // 下期建议
+        () => utils.event.upcoming.prefetch({ days: 365 }),                                             // 下期建议
+        () => utils.review.list.prefetch({ limit: 10 }),                                                // 下期建议
+        () => utils.review.listRejectedTitles.prefetch(),                                               // 下期建议
+        () => utils.topic.listDeleted.prefetch(),                                                       // 回收箱
+        () => utils.note.listForDataEntry.prefetch(),                                                   // 数据录入
+      ];
       if (!isTeacher) {
-        utils.note.listWithMetrics.prefetch({});            // 数据情况
-        utils.dashboard.overview.prefetch();                // 矩阵总览
-        utils.dashboard.rankings.prefetch({ period: "30" });
-        utils.auth.listUsers.prefetch();                    // 账号管理 / 用户管理
-        utils.topic.listTypesWithCount.prefetch();          // 类型管理
+        tasks.push(
+          () => utils.auth.listUsers.prefetch(),                     // 账号管理 / 用户管理
+          () => utils.topic.listTypesWithCount.prefetch(),          // 类型管理
+          () => utils.dashboard.rankings.prefetch({ period: "30" }), // 矩阵总览
+          () => utils.dashboard.overview.prefetch(),                 // 矩阵总览（较重）
+          () => utils.note.listWithMetrics.prefetch({}),            // 数据情况（最重，放最后）
+        );
       }
-    }, 500);
-    return () => clearTimeout(timer);
+      for (const run of tasks) {
+        if (cancelled) return;
+        try { await run(); } catch { /* 预取失败忽略，不影响点击时的正常请求 */ }
+      }
+    }, 800);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [utils, isTeacher, selectedAccountId]);
 }
 
