@@ -45,44 +45,11 @@ function usePrefetchRoutes() {
   }, []);
 }
 
-// Prefetch API data that slow pages need, so it's cached before navigation
+// 数据预取暂时停用：用于排查"所有页面变慢"问题，先把预取从变量中排除，
+// 得到一个干净基线。若停用后仍慢，则说明是后端/数据库本身，与预取无关。
+// 确认基线正常后，再考虑用更克制的方式（或改为后端查询优化）重新引入。
 function usePrefetchData() {
-  const utils = trpc.useUtils();
-  const { isTeacher, selectedAccountId } = useAuth();
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      // ⚠️ 顺序预取（一次只发一个请求）。一次性并发会把后端连接池 / 单实例 CPU 打满，
-      // 反而让真正点击的页面排队等待——之前 10s+ 卡顿就是这么来的。
-      // 顺序安排：常用轻量页在前，最重的查询（数据情况/总览）放最后，
-      // 这样轻量页能尽快预热，重查询也不会阻塞它们。
-      const tasks: Array<() => Promise<unknown>> = [
-        () => utils.account.list.prefetch(),                                                            // 账号下拉（多页共用）
-        () => utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {}), // 选题看板 + 发布日历
-        () => utils.review.list.prefetch({ type: isTeacher ? "monthly" : "weekly", limit: 20 }),        // 复盘报告（默认标签）
-        () => utils.review.listRecommendations.prefetch({ limit: 5 }),                                  // 下期建议
-        () => utils.event.upcoming.prefetch({ days: 365 }),                                             // 下期建议
-        () => utils.review.list.prefetch({ limit: 10 }),                                                // 下期建议
-        () => utils.review.listRejectedTitles.prefetch(),                                               // 下期建议
-        () => utils.topic.listDeleted.prefetch(),                                                       // 回收箱
-        () => utils.note.listForDataEntry.prefetch(),                                                   // 数据录入
-      ];
-      if (!isTeacher) {
-        tasks.push(
-          () => utils.auth.listUsers.prefetch(),                     // 账号管理 / 用户管理
-          () => utils.topic.listTypesWithCount.prefetch(),          // 类型管理
-          () => utils.dashboard.rankings.prefetch({ period: "30" }), // 矩阵总览
-          () => utils.dashboard.overview.prefetch(),                 // 矩阵总览（较重）
-          () => utils.note.listWithMetrics.prefetch({}),            // 数据情况（最重，放最后）
-        );
-      }
-      for (const run of tasks) {
-        if (cancelled) return;
-        try { await run(); } catch { /* 预取失败忽略，不影响点击时的正常请求 */ }
-      }
-    }, 800);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [utils, isTeacher, selectedAccountId]);
+  // no-op
 }
 
 function AppRoutes() {
