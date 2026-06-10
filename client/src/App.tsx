@@ -27,16 +27,19 @@ const TrashPage = lazy(() => import("./pages/TrashPage.js"));
 function usePrefetchRoutes() {
   useEffect(() => {
     const timer = setTimeout(() => {
+      // 预取全部懒加载页面的 JS chunk，点击任意菜单都能秒开
+      import("./pages/KanbanPage.js");
+      import("./pages/CalendarPage.js");
       import("./pages/TopicDetailPage.js");
       import("./pages/TrashPage.js");
-      import("./pages/CalendarPage.js");
       import("./pages/DataEntryPage.js");
-      import("./pages/RecommendationPage.js");
-      import("./pages/ReviewPage.js");
       import("./pages/DataOverviewPage.js");
+      import("./pages/ReviewPage.js");
+      import("./pages/RecommendationPage.js");
       import("./pages/DashboardPage.js");
       import("./pages/AccountsPage.js");
       import("./pages/UsersPage.js");
+      import("./pages/TypesPage.js");
     }, 1000);
     return () => clearTimeout(timer);
   }, []);
@@ -48,20 +51,24 @@ function usePrefetchData() {
   const { isTeacher, selectedAccountId } = useAuth();
   useEffect(() => {
     const timer = setTimeout(() => {
-      // 所有角色都可能进入的页面
-      utils.account.list.prefetch();
-      // 选题看板主查询：按当前角色的初始参数预热（与页面首个请求的 key 对齐）
-      utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {});
-      utils.topic.listDeleted.prefetch();
-      utils.note.listForDataEntry.prefetch();
+      // —— 所有角色都可进入的页面 ——
+      utils.account.list.prefetch();                                                          // 账号下拉（多页共用）
+      utils.topic.list.prefetch(isTeacher ? { accountId: selectedAccountId || undefined } : {}); // 选题看板 + 发布日历
+      utils.topic.listDeleted.prefetch();                                                     // 回收箱
+      utils.note.listForDataEntry.prefetch();                                                 // 数据录入
+      utils.review.list.prefetch({ type: isTeacher ? "monthly" : "weekly", limit: 20 });      // 复盘报告（默认标签）
+      // 下期建议页用到的几个查询
       utils.event.upcoming.prefetch({ days: 365 });
       utils.review.listRecommendations.prefetch({ limit: 5 });
-      utils.review.list.prefetch({ type: "weekly", limit: 5 });
-      // 仅 leader 可见的页面（listWithMetrics 是 leaderProcedure，老师预取会 403）
+      utils.review.listRejectedTitles.prefetch();
+      utils.review.list.prefetch({ limit: 10 });
+      // —— 仅 leader 可见的页面 ——
       if (!isTeacher) {
-        utils.note.listWithMetrics.prefetch({}); // 数据情况主查询
-        utils.dashboard.overview.prefetch();
+        utils.note.listWithMetrics.prefetch({});            // 数据情况
+        utils.dashboard.overview.prefetch();                // 矩阵总览
         utils.dashboard.rankings.prefetch({ period: "30" });
+        utils.auth.listUsers.prefetch();                    // 账号管理 / 用户管理
+        utils.topic.listTypesWithCount.prefetch();          // 类型管理
       }
     }, 500);
     return () => clearTimeout(timer);
