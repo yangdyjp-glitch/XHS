@@ -133,24 +133,19 @@ async function runAutoMigrations() {
     console.log("[Compass] Cleaned old /uploads/ cover URLs.");
 
     // 一次性回填：历史上发布时把 published_at 误写成了创建时刻。把"发布时间≈创建时间"
-    // (相差<120秒，明显是 bug)的笔记，改为其选题的计划发布日期。换算与 publish/republish
-    // 一致(new Date(planned))。幂等：已修正的会被跳过，后续部署不会重复写。
-    const buggy: any = await db.execute(sql`
-      SELECT n.id, n.published_at AS published_at, t.planned_publish_date AS planned
-      FROM notes n
-      JOIN topics t ON t.id = n.topic_id
-      WHERE t.planned_publish_date IS NOT NULL
+    // (相差<120秒，明显是 bug)的笔记，改为其选题的计划发布日期(::timestamp = UTC 午夜，
+    // 服务器时区为 UTC，与 publish/republish 的 new Date(planned) 结果一致)。
+    // 单条纯 SQL、显式类型转换，避免参数类型推断问题；带 <> 守卫，幂等(已修正者不再更新)。
+    const fix: any = await db.execute(sql`
+      UPDATE notes n
+      SET published_at = t.planned_publish_date::timestamp
+      FROM topics t
+      WHERE t.id = n.topic_id
+        AND t.planned_publish_date IS NOT NULL
         AND ABS(EXTRACT(EPOCH FROM (n.published_at - n.created_at))) < 120
+        AND n.published_at <> t.planned_publish_date::timestamp
     `);
-    let fixed = 0;
-    for (const row of buggy as Array<{ id: number; published_at: any; planned: any }>) {
-      const planned = new Date(row.planned);
-      if (Number.isNaN(planned.getTime())) continue;
-      if (new Date(row.published_at).getTime() === planned.getTime()) continue; // 已正确，跳过
-      await db.execute(sql`UPDATE notes SET published_at = ${planned} WHERE id = ${row.id}`);
-      fixed++;
-    }
-    if (fixed > 0) console.log(`[Compass] Backfilled published_at (创建时间→计划发布日期) for ${fixed} notes.`);
+    console.log(`[Compass] Backfilled published_at (创建时间→计划发布日期) for ${fix?.count ?? 0} notes.`);
   } catch (e: any) {
     console.warn("[Compass] Auto-migration warning:", e.message);
   }
