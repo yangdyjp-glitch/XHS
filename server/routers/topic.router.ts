@@ -331,13 +331,16 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "只能发布自己的选题" });
       }
 
+      // 笔记发布时间取「计划发布时间」，而不是系统录入此刻（否则数据里显示成创建时间）
+      const publishDate = topic.plannedPublishDate ? new Date(topic.plannedPublishDate) : new Date();
+
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
       if (existing.length > 0) {
         // Note already exists — update with publish info (cover image, URL)
         await db.update(notes).set({
           xhsNoteUrl: input.xhsNoteUrl,
           coverImage: input.coverImage || null,
-          publishedAt: new Date(),
+          publishedAt: publishDate,
         }).where(eq(notes.topicId, topic.id));
       } else {
         await db.insert(notes).values({
@@ -346,7 +349,7 @@ export const topicRouter = router({
           finalTitle: topic.title,
           xhsNoteUrl: input.xhsNoteUrl,
           coverImage: input.coverImage || null,
-          publishedAt: new Date(),
+          publishedAt: publishDate,
         });
       }
 
@@ -384,13 +387,16 @@ export const topicRouter = router({
         await db.update(topics).set({ title: input.title.trim(), updatedAt: new Date() }).where(eq(topics.id, input.topicId));
       }
 
+      // 重新上传同样用计划发布时间，保证发布时间不被改成「现在」
+      const publishDate = topic.plannedPublishDate ? new Date(topic.plannedPublishDate) : new Date();
+
       const existing = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, topic.id)).limit(1);
       if (existing.length > 0) {
         // Overwrite existing note; only update coverImage if a new one was provided
         const updateData: Record<string, any> = {
           finalTitle: effectiveTitle,
           xhsNoteUrl: input.xhsNoteUrl,
-          publishedAt: new Date(),
+          publishedAt: publishDate,
         };
         if (input.coverImage !== undefined) {
           updateData.coverImage = input.coverImage || null;
@@ -404,7 +410,7 @@ export const topicRouter = router({
           finalTitle: effectiveTitle,
           xhsNoteUrl: input.xhsNoteUrl,
           coverImage: input.coverImage || null,
-          publishedAt: new Date(),
+          publishedAt: publishDate,
         });
       }
 

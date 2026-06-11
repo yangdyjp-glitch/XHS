@@ -45,6 +45,10 @@ export default function TopicDetailPage() {
   const deleteMutation = trpc.topic.delete.useMutation({ onSuccess: () => navigate("/") });
   const updateMutation = trpc.topic.update.useMutation({ onSuccess: () => topicQuery.refetch() });
   const createNoteMutation = trpc.note.create.useMutation({ onSuccess: () => notesQuery.refetch() });
+  const deleteNoteMutation = trpc.note.delete.useMutation({
+    onSuccess: () => notesQuery.refetch(),
+    onError: (e) => window.alert(e.message || "删除失败"),
+  });
   const createCommentMutation = trpc.comment.create.useMutation({ onSuccess: () => commentsQuery.refetch() });
 
   const [commentText, setCommentText] = useState("");
@@ -245,6 +249,20 @@ export default function TopicDetailPage() {
                   <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN")}</span>
                 </div>
               </div>
+              {(isLeader || topic.creatorId === user?.id) && (notesQuery.data?.length ?? 0) > 1 && (
+                <button
+                  onClick={() => {
+                    if (window.confirm("确定删除这篇关联笔记吗？删除后不可恢复（含其已录入的数据）。")) {
+                      deleteNoteMutation.mutate({ id: note.id });
+                    }
+                  }}
+                  disabled={deleteNoteMutation.isPending}
+                  className="shrink-0 self-start mono-data text-[#991B1B] hover:text-[#7F1D1D] disabled:opacity-50"
+                  title="删除这篇关联笔记"
+                >
+                  删除
+                </button>
+              )}
             </div>
             {/* Metrics */}
             {note.latestMetric && (

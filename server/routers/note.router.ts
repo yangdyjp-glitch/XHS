@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { notes, topics, accounts, metricSnapshots } from "../../drizzle/schema.js";
@@ -131,6 +132,38 @@ export const noteRouter = router({
     .mutation(async ({ input }) => {
       const { id, ...updates } = input;
       await db.update(notes).set(updates).where(eq(notes.id, id));
+      return { success: true };
+    }),
+
+  // 删除一篇关联笔记（硬删除，含其指标快照）。每个选题至少保留一篇。
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const [note] = await db
+        .select({ id: notes.id, topicId: notes.topicId })
+        .from(notes)
+        .where(eq(notes.id, input.id))
+        .limit(1);
+      if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "笔记不存在" });
+
+      // 权限：仅负责人或选题创建者可删除
+      const [topic] = await db
+        .select({ creatorId: topics.creatorId })
+        .from(topics)
+        .where(eq(topics.id, note.topicId))
+        .limit(1);
+      if (topic && ctx.user.role !== "leader" && topic.creatorId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "没有权限删除该笔记" });
+      }
+
+      // 至少保留一篇：少于等于一篇时不允许删除
+      const siblings = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, note.topicId));
+      if (siblings.length <= 1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "每个选题至少保留一篇关联笔记" });
+      }
+
+      await db.delete(metricSnapshots).where(eq(metricSnapshots.noteId, input.id));
+      await db.delete(notes).where(eq(notes.id, input.id));
       return { success: true };
     }),
 
