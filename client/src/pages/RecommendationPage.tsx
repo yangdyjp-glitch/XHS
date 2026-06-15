@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useReviewScope } from "../hooks/useReviewScope.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import { BANNED_WORDS } from "@shared/bannedWords.js";
 import TopicCreateDialog from "../components/topic/TopicCreateDialog.js";
@@ -48,9 +49,11 @@ export default function RecommendationPage() {
   const [useSeed, setUseSeed] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
+  // 范围标签逻辑与「复盘报告」页共用，确保下拉里的账号简称口径一致。
+  const { scopeLabel } = useReviewScope();
   const recommendMutation = trpc.review.aiRecommend.useMutation();
   const pastQuery = trpc.review.listRecommendations.useQuery({ limit: 5 }, { refetchOnWindowFocus: false });
-  const reviewsQuery = trpc.review.list.useQuery({ limit: 10 }, { refetchOnWindowFocus: false, staleTime: 0 });
+  const reviewsQuery = trpc.review.list.useQuery({ limit: 20 }, { refetchOnWindowFocus: false, staleTime: 0 });
   const upcomingQuery = trpc.event.upcoming.useQuery({ days: 365 }, { refetchOnWindowFocus: false });
   const rejectedTitlesQuery = trpc.review.listRejectedTitles.useQuery(undefined, { refetchOnWindowFocus: false });
   const createEventMutation = trpc.event.create.useMutation({
@@ -177,12 +180,12 @@ export default function RecommendationPage() {
                 value={selectedReviewId ? String(selectedReviewId) : ""}
                 onChange={(v) => setSelectedReviewId(v ? Number(v) : null)}
                 placeholder="选择报告（可选）"
-                className="w-56"
+                className="w-72"
                 options={[
                   { value: "", label: "不基于报告" },
                   ...reviewsQuery.data.map((r) => ({
                     value: String(r.id),
-                    label: `${r.reviewType === "weekly" ? "周报" : "月报"} ${r.periodStart}~${r.periodEnd}`,
+                    label: `${r.reviewType === "weekly" ? "周报" : "月报"} ${r.periodStart}~${r.periodEnd} · ${scopeLabel(r)}`,
                   })),
                 ]}
               />

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useReviewScope } from "../hooks/useReviewScope.js";
 import AccountFilter from "../components/ui/AccountFilter.js";
 
 function formatDate(d: string) {
@@ -53,31 +54,9 @@ export default function ReviewPage() {
 
   const utils = trpc.useUtils();
 
+  // 账号选项 + 范围标签逻辑与「下期调整」页共用（见 useReviewScope），口径保持一致。
   // 负责人可在全部账号中多选；老师只在自己名下账号中多选。空选 = 全矩阵。
-  const leaderAccountsQuery = trpc.account.list.useQuery(undefined, {
-    enabled: isLeader,
-    refetchOnWindowFocus: false,
-  });
-  const ownerAccountsQuery = trpc.account.listByOwner.useQuery(undefined, {
-    enabled: !isLeader,
-    refetchOnWindowFocus: false,
-  });
-  const accountOptions = (isLeader ? leaderAccountsQuery.data : ownerAccountsQuery.data) || [];
-  const accountNameMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    for (const a of accountOptions) m[a.id] = a.accountName;
-    return m;
-  }, [accountOptions]);
-
-  // 列表里报告的范围标签：全矩阵原样显示；否则写明所选账号简称（账号名前 3 个字，如「途洋日」）。
-  const scopeLabel = (r: { scope: string; accountIds: number[] | null; accountId: number | null }) => {
-    const ids = r.accountIds && r.accountIds.length > 0 ? r.accountIds : r.accountId ? [r.accountId] : [];
-    if (r.scope === "matrix" || ids.length === 0) return "全矩阵";
-    const names = ids.map((id) => accountNameMap[id]).filter(Boolean) as string[];
-    // 账号名尚未加载齐全时回退到通用标签，避免出现 #id
-    if (names.length !== ids.length) return r.scope === "multi" ? "多账号" : "单号";
-    return names.map((n) => n.slice(0, 3)).join("、");
-  };
+  const { accountOptions, accountNameMap, scopeLabel, resolveIds } = useReviewScope();
 
   const weeks = useMemo(() => getRecentWeeks(), []);
   const months = useMemo(() => getRecentMonths(), []);
@@ -118,14 +97,8 @@ export default function ReviewPage() {
   });
 
   const review = detailQuery.data;
-  // 报告涉及的账号 id：优先多账号数组，回退单账号；空 = 全矩阵
-  const reviewAccountIds: number[] = review
-    ? review.accountIds && review.accountIds.length > 0
-      ? review.accountIds
-      : review.accountId
-        ? [review.accountId]
-        : []
-    : [];
+  // 报告涉及的账号 id：优先多账号数组，回退单账号；空 = 全矩阵（口径同列表标签）
+  const reviewAccountIds: number[] = review ? resolveIds(review) : [];
   const summaryJson = review?.summaryJson as any;
   const latestAnalysis = review?.analyses?.[0];
   const analysisResult = latestAnalysis?.resultJson as any;
