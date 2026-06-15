@@ -69,6 +69,16 @@ export default function ReviewPage() {
     return m;
   }, [accountOptions]);
 
+  // 列表里报告的范围标签：全矩阵原样显示；否则写明所选账号简称（账号名前 3 个字，如「途洋日」）。
+  const scopeLabel = (r: { scope: string; accountIds: number[] | null; accountId: number | null }) => {
+    const ids = r.accountIds && r.accountIds.length > 0 ? r.accountIds : r.accountId ? [r.accountId] : [];
+    if (r.scope === "matrix" || ids.length === 0) return "全矩阵";
+    const names = ids.map((id) => accountNameMap[id]).filter(Boolean) as string[];
+    // 账号名尚未加载齐全时回退到通用标签，避免出现 #id
+    if (names.length !== ids.length) return r.scope === "multi" ? "多账号" : "单号";
+    return names.map((n) => n.slice(0, 3)).join("、");
+  };
+
   const weeks = useMemo(() => getRecentWeeks(), []);
   const months = useMemo(() => getRecentMonths(), []);
   const periods = tab === "weekly" ? weeks : months;
@@ -197,8 +207,7 @@ export default function ReviewPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="font-medium text-ink">
-                  {r.reviewType === "weekly" ? "周报" : "月报"}
-                  {r.scope === "account" ? " (单号)" : r.scope === "multi" ? " (多账号)" : " (全矩阵)"}
+                  {r.reviewType === "weekly" ? "周报" : "月报"} ({scopeLabel(r)})
                 </div>
                 <button
                   onClick={(e) => {
@@ -241,8 +250,11 @@ export default function ReviewPage() {
                   </span>
                 </div>
                 {reviewAccountIds.length > 0 && (
-                  <p className="mono-data text-muted mb-2">
-                    账号：{reviewAccountIds.map((id) => accountNameMap[id] || `#${id}`).join("、")}
+                  <p className="text-sm text-ink-soft mb-2">
+                    账号：
+                    <span className="font-semibold text-accent">
+                      {reviewAccountIds.map((id) => accountNameMap[id] || `#${id}`).join("、")}
+                    </span>
                   </p>
                 )}
                 {review.highlights && (
