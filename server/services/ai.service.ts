@@ -114,8 +114,8 @@ const JUDGMENT_CONTENT_GUIDE = `## 核心方法论：判断型内容 > 知识型
 - 判断高低要看互动结构而不仅是曝光量：高曝光却只换来收藏/泛泛点赞、缺乏评论讨论，往往是吸引了白嫖党；能引发"为什么、怎么选、我也在纠结"这类讨论的，才是判断型内容在起效。
 - 强工具性内容（考试速记、套磁模板、纯专业科普）受众窄、起量难，只适合做精准转化的补充，不该当作起量主力。`;
 
-export async function analyzePerformance(data: ReviewInputData): Promise<{ result: AnalysisResult; tokensUsed: number; prompt: string }> {
-  const prompt = `你是小红书内容运营分析专家。请根据以下数据，对这段时间的内容表现进行复盘分析。
+function buildAnalysisPrompt(data: ReviewInputData): string {
+  return `你是小红书内容运营分析专家。请根据以下数据，对这段时间的内容表现进行复盘分析。
 
 ## 周期
 ${data.period.start} 至 ${data.period.end}
@@ -145,24 +145,57 @@ ${JUDGMENT_CONTENT_GUIDE}
   "improvements": ["具体改进建议，给出如何把表现差的知识型选题改写成判断型的可执行方向（具体到对象、立场、反差点）"]
 }
 
+【硬性要求，必须遵守】
+- summary 只是总览。真正的分析价值在 topPerformers / bottomPerformers / contentFormulas / trends / improvements 这五个分组里，**绝对不要把分析都堆在 summary 而让这些分组留空**。
+- 这五个分组**都必须有实际内容、不得返回空数组**。即使本期笔记数量很多（几十篇），也要完整分析并填满每一个分组：topPerformers 至少 3 条、bottomPerformers 至少 3 条、contentFormulas 至少 3 条、trends 至少 3 条、improvements 至少 4 条。
+- 笔记多的时候，按表现挑出最值得讲的代表案例来填充各分组即可，不必逐篇罗列，但分组本身不能空。
+
 请通过 submit_analysis 工具提交结果（字段含义见上）。`;
+}
+
+export async function analyzePerformance(data: ReviewInputData): Promise<{ result: AnalysisResult; tokensUsed: number; prompt: string }> {
+  const prompt = buildAnalysisPrompt(data);
+  const arr = (x: any): any[] => (Array.isArray(x) ? x : []);
+  const normalize = (raw: any): AnalysisResult => ({
+    summary: typeof raw?.summary === "string" ? raw.summary : String(raw?.summary ?? ""),
+    topPerformers: arr(raw?.topPerformers),
+    bottomPerformers: arr(raw?.bottomPerformers),
+    contentFormulas: arr(raw?.contentFormulas),
+    trends: arr(raw?.trends),
+    improvements: arr(raw?.improvements),
+  });
+  // schema 的 required 只能保证字段存在，无法保证数组非空；
+  // 笔记较多时模型偶发把分析都写进 summary、各分组留空，检测到后强制补全一次。
+  const allSectionsEmpty = (r: AnalysisResult) =>
+    r.topPerformers.length === 0 &&
+    r.bottomPerformers.length === 0 &&
+    r.contentFormulas.length === 0 &&
+    r.trends.length === 0 &&
+    r.improvements.length === 0;
+  const tool = { name: "submit_analysis", description: "提交本期复盘分析结果", input_schema: ANALYSIS_SCHEMA };
 
   try {
-    const { result: raw, tokensUsed } = await callStructured<AnalysisResult>(
-      prompt,
-      { name: "submit_analysis", description: "提交本期复盘分析结果", input_schema: ANALYSIS_SCHEMA },
-      4096
-    );
-    // 兜底：把各数组字段统一规整为数组（模型偶发把数组写成字符串），避免前端 .map 崩溃
-    const arr = (x: any): any[] => (Array.isArray(x) ? x : []);
-    const result: AnalysisResult = {
-      summary: typeof raw?.summary === "string" ? raw.summary : String(raw?.summary ?? ""),
-      topPerformers: arr(raw?.topPerformers),
-      bottomPerformers: arr(raw?.bottomPerformers),
-      contentFormulas: arr(raw?.contentFormulas),
-      trends: arr(raw?.trends),
-      improvements: arr(raw?.improvements),
-    };
+    const first = await callStructured<AnalysisResult>(prompt, tool, 8000);
+    let tokensUsed = first.tokensUsed;
+    let result = normalize(first.result);
+
+    if (allSectionsEmpty(result)) {
+      const retryPrompt = `${prompt}
+
+⚠️ 上一次你把 topPerformers / bottomPerformers / contentFormulas / trends / improvements 全部留成了空数组，这是错误的、不被接受的。请重新分析，这五个分组都必须有实际内容、不得为空（topPerformers≥3、bottomPerformers≥3、contentFormulas≥3、trends≥3、improvements≥4）。${result.summary ? `\n\n（你上一次的整体总结，供参考，可改写）：${result.summary}` : ""}`;
+      const retry = await callStructured<AnalysisResult>(retryPrompt, tool, 8000);
+      tokensUsed += retry.tokensUsed;
+      const retried = normalize(retry.result);
+      result = {
+        summary: retried.summary || result.summary,
+        topPerformers: retried.topPerformers.length ? retried.topPerformers : result.topPerformers,
+        bottomPerformers: retried.bottomPerformers.length ? retried.bottomPerformers : result.bottomPerformers,
+        contentFormulas: retried.contentFormulas.length ? retried.contentFormulas : result.contentFormulas,
+        trends: retried.trends.length ? retried.trends : result.trends,
+        improvements: retried.improvements.length ? retried.improvements : result.improvements,
+      };
+    }
+
     return { result, tokensUsed, prompt };
   } catch (e: any) {
     if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
