@@ -9,6 +9,68 @@ function getClient() {
   return new Anthropic({ apiKey });
 }
 
+const MODEL = "claude-opus-4-8";
+
+// 用「强制工具调用」获取结构化结果：tool_choice 锁定到指定工具，
+// SDK 直接返回已解析的对象（tool_use.input），不再靠正则抠文本 + JSON.parse，
+// 从根本上避免模型输出非法 JSON 导致的解析报错。
+async function callStructured<T>(
+  prompt: string,
+  tool: { name: string; description: string; input_schema: Record<string, unknown> },
+  maxTokens: number
+): Promise<{ result: T; tokensUsed: number }> {
+  const client = getClient();
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: maxTokens,
+    tools: [tool as any],
+    tool_choice: { type: "tool", name: tool.name },
+    messages: [{ role: "user", content: prompt }],
+  });
+  const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+  const block = response.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use") throw new Error("AI 未返回结构化结果");
+  return { result: block.input as T, tokensUsed };
+}
+
+// 单条推荐的字段结构（推荐列表与「换一个」共用）
+const REC_ITEM_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    title: { type: "string" },
+    topicType: { type: "string" },
+    keywords: { type: "array", items: { type: "string" } },
+    reason: { type: "string" },
+    priority: { type: "string" },
+  },
+  required: ["title", "topicType", "keywords", "reason", "priority"],
+};
+
+const ANALYSIS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    summary: { type: "string" },
+    topPerformers: { type: "array", items: { type: "object", additionalProperties: false, properties: { title: { type: "string" }, reason: { type: "string" } }, required: ["title", "reason"] } },
+    bottomPerformers: { type: "array", items: { type: "object", additionalProperties: false, properties: { title: { type: "string" }, reason: { type: "string" } }, required: ["title", "reason"] } },
+    contentFormulas: { type: "array", items: { type: "string" } },
+    trends: { type: "array", items: { type: "string" } },
+    improvements: { type: "array", items: { type: "string" } },
+  },
+  required: ["summary", "topPerformers", "bottomPerformers", "contentFormulas", "trends", "improvements"],
+};
+
+const RECOMMENDATIONS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    recommendations: { type: "array", items: REC_ITEM_SCHEMA },
+    strategy: { type: "string" },
+  },
+  required: ["recommendations", "strategy"],
+};
+
 export interface ReviewInputData {
   period: { start: string; end: string };
   accounts: { id: number; name: string; layer: string }[];
@@ -83,24 +145,14 @@ ${JUDGMENT_CONTENT_GUIDE}
   "improvements": ["具体改进建议，给出如何把表现差的知识型选题改写成判断型的可执行方向（具体到对象、立场、反差点）"]
 }
 
-只输出JSON，不要其他文字。`;
+请通过 submit_analysis 工具提交结果（字段含义见上）。`;
 
   try {
-    const client = getClient();
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const result: AnalysisResult = jsonMatch
-      ? JSON.parse(jsonMatch[0])
-      : { summary: text, topPerformers: [], bottomPerformers: [], contentFormulas: [], trends: [], improvements: [] };
-
+    const { result, tokensUsed } = await callStructured<AnalysisResult>(
+      prompt,
+      { name: "submit_analysis", description: "提交本期复盘分析结果", input_schema: ANALYSIS_SCHEMA },
+      4096
+    );
     return { result, tokensUsed, prompt };
   } catch (e: any) {
     if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
@@ -176,23 +228,14 @@ ${JUDGMENT_CONTENT_GUIDE}
   "strategy": "整体策略建议（2-3句话），点明下期如何从知识型干货转向判断型内容"
 }
 
-只输出JSON，不要其他文字。`;
+请通过 submit_recommendations 工具提交结果（字段含义见上）。`;
 
   try {
-    const client = getClient();
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const result: RecommendationResult = jsonMatch
-      ? JSON.parse(jsonMatch[0])
-      : { recommendations: [], strategy: text };
+    const { result, tokensUsed } = await callStructured<RecommendationResult>(
+      prompt,
+      { name: "submit_recommendations", description: "提交下期选题推荐与整体策略", input_schema: RECOMMENDATIONS_SCHEMA },
+      4096
+    );
 
     // 兜底：万一模型仍输出禁用词，从策略与推荐文本中剔除
     const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
@@ -253,23 +296,14 @@ ${JUDGMENT_CONTENT_GUIDE}
   "priority": "high/normal/low"
 }
 
-只输出JSON，不要其他文字。`;
+请通过 submit_recommendation 工具提交这一条新推荐。`;
 
   try {
-    const client = getClient();
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const parsed: SingleRecommendation = jsonMatch
-      ? JSON.parse(jsonMatch[0])
-      : { title: seed.title, topicType: seed.topicType, keywords: seed.keywords, reason: text, priority: seed.priority };
+    const { result: parsed, tokensUsed } = await callStructured<SingleRecommendation>(
+      prompt,
+      { name: "submit_recommendation", description: "提交一条替代选题推荐", input_schema: REC_ITEM_SCHEMA },
+      2000
+    );
 
     const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
     const recommendation: SingleRecommendation = {
