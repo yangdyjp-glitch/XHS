@@ -211,3 +211,18 @@ export const calendarEvents = pgTable("calendar_events", {
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// ==================== 审计：负责人代理登录（“登录为该用户”） ====================
+// 仅负责人可发起；每次发起/退出都写一条日志（谁 actorId、登录了谁 targetUserId、何时）。
+// 不接触、不影响任何账户的密码，仅作可追溯的审计记录。
+export const impersonationLogs = pgTable("impersonation_logs", {
+  id: serial("id").primaryKey(),
+  actorId: integer("actor_id")
+    .notNull()
+    .references(() => users.id),
+  targetUserId: integer("target_user_id")
+    .notNull()
+    .references(() => users.id),
+  action: varchar("action", { length: 20 }).notNull().default("start"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

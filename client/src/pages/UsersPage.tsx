@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
+import { useAuth } from "../hooks/useAuth.js";
 import { USER_ROLE } from "../../../shared/enums.js";
 import Dropdown from "../components/ui/Dropdown.js";
 
@@ -12,7 +13,12 @@ type EditForm = {
 };
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const { data: usersList, refetch } = trpc.auth.listUsers.useQuery();
+  const impersonate = trpc.auth.impersonate.useMutation({
+    onSuccess: () => window.location.assign("/"),
+    onError: (e) => window.alert(e.message || "代理登录失败"),
+  });
   const createUser = trpc.auth.createUser.useMutation({
     onSuccess: () => {
       refetch();
@@ -71,7 +77,18 @@ export default function UsersPage() {
     }
   };
 
-  const isBusy = createUser.isPending || updateUser.isPending || deleteUser.isPending || resetPassword.isPending;
+  const handleImpersonate = (id: number, name: string) => {
+    if (impersonate.isPending) return;
+    if (
+      window.confirm(
+        `将以「${name}」的身份登录其账户，期间你看到和操作的都是该用户的内容。\n\n此操作会被记入审计日志（谁、登录了谁、何时），不会修改对方密码。\n完成后可点击底部横幅「返回我的账户」。\n\n确定继续吗？`
+      )
+    ) {
+      impersonate.mutate({ userId: id });
+    }
+  };
+
+  const isBusy = createUser.isPending || updateUser.isPending || deleteUser.isPending || resetPassword.isPending || impersonate.isPending;
 
   return (
     <div>
@@ -241,6 +258,16 @@ export default function UsersPage() {
                   {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("zh-CN") : "从未登录"}
                 </td>
                 <td className="px-4 py-3 text-right">
+                  {currentUser && u.id !== currentUser.id && (
+                    <button
+                      onClick={() => handleImpersonate(u.id, u.name)}
+                      disabled={isBusy || !u.isActive}
+                      title="以该用户身份登录（会记入审计日志，不影响其密码）"
+                      className="text-xs text-[#0F766E] hover:text-[#115E59] mr-3 disabled:opacity-50"
+                    >
+                      登录该账户
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEdit(u)}
                     disabled={isBusy}

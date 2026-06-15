@@ -1,9 +1,10 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch, useLocation } from "wouter";
 import { trpc, createTRPCClient } from "./lib/trpc.js";
 import { useAuth } from "./hooks/useAuth.js";
 import AppShell from "./components/layout/AppShell.js";
+import ImpersonationBanner from "./components/ImpersonationBanner.js";
 import ErrorBoundary from "./components/ErrorBoundary.js";
 import LoginPage from "./pages/LoginPage.js";
 import ChangePasswordPage from "./pages/ChangePasswordPage.js";
@@ -68,40 +69,47 @@ function AppRoutes() {
     return <LoginPage />;
   }
 
+  let content: ReactNode;
   if (user.mustChangePassword) {
-    return <ChangePasswordPage />;
+    content = <ChangePasswordPage />;
+  } else if (isTeacher && !selectedAccountId) {
+    // Teachers must select an account before entering the app
+    content = <AccountSelectPage />;
+  } else {
+    content = (
+      <AppShell>
+        <Prefetcher />
+        <ErrorBoundary key={location}>
+        <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
+          <Switch>
+            <Route path="/" component={KanbanPage} />
+            <Route path="/calendar" component={CalendarPage} />
+            <Route path="/trash" component={TrashPage} />
+            <Route path="/topic/:id" component={TopicDetailPage} />
+            <Route path="/data-entry" component={DataEntryPage} />
+            <Route path="/data-overview" component={DataOverviewPage} />
+            <Route path="/reviews" component={ReviewPage} />
+            <Route path="/recommendations" component={RecommendationPage} />
+            {!isTeacher && <Route path="/dashboard" component={DashboardPage} />}
+            {!isTeacher && <Route path="/admin/accounts" component={AccountsPage} />}
+            {!isTeacher && <Route path="/admin/users" component={UsersPage} />}
+            {!isTeacher && <Route path="/admin/types" component={TypesPage} />}
+            <Route>
+              <div className="text-center py-20 text-gray-400">页面不存在</div>
+            </Route>
+          </Switch>
+        </Suspense>
+        </ErrorBoundary>
+      </AppShell>
+    );
   }
 
-  // Teachers must select an account before entering the app
-  if (isTeacher && !selectedAccountId) {
-    return <AccountSelectPage />;
-  }
-
+  // 代理登录横幅在所有已登录界面（含账号选择页）上方悬浮显示
   return (
-    <AppShell>
-      <Prefetcher />
-      <ErrorBoundary key={location}>
-      <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
-        <Switch>
-          <Route path="/" component={KanbanPage} />
-          <Route path="/calendar" component={CalendarPage} />
-          <Route path="/trash" component={TrashPage} />
-          <Route path="/topic/:id" component={TopicDetailPage} />
-          <Route path="/data-entry" component={DataEntryPage} />
-          <Route path="/data-overview" component={DataOverviewPage} />
-          <Route path="/reviews" component={ReviewPage} />
-          <Route path="/recommendations" component={RecommendationPage} />
-          {!isTeacher && <Route path="/dashboard" component={DashboardPage} />}
-          {!isTeacher && <Route path="/admin/accounts" component={AccountsPage} />}
-          {!isTeacher && <Route path="/admin/users" component={UsersPage} />}
-          {!isTeacher && <Route path="/admin/types" component={TypesPage} />}
-          <Route>
-            <div className="text-center py-20 text-gray-400">页面不存在</div>
-          </Route>
-        </Switch>
-      </Suspense>
-      </ErrorBoundary>
-    </AppShell>
+    <>
+      <ImpersonationBanner />
+      {content}
+    </>
   );
 }
 

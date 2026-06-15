@@ -8,6 +8,8 @@ interface User {
   email: string;
   role: string;
   mustChangePassword: boolean;
+  // 负责人代理登录时，此处为发起代理的原负责人；为空表示正常登录
+  impersonator?: { id: number; name: string } | null;
 }
 
 interface AuthState {
@@ -70,6 +72,7 @@ export function useAuth() {
     isLeader: user?.role === "leader",
     isTeacher: user?.role === "teacher" || user?.role === "editor",
     isEditor: user?.role === "editor",
+    impersonator: user?.impersonator ?? null,
     selectedAccountId,
     setSelectedAccountId,
   };

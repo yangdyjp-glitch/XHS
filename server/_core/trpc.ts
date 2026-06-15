@@ -15,6 +15,8 @@ export interface Context {
     name: string;
     mustChangePassword: boolean;
   } | null;
+  // 当处于负责人代理登录状态时，记录发起代理的原负责人（用于横幅与审计）
+  impersonator?: { id: number; name: string } | null;
 }
 
 export async function createContext(req: Request, res: Response): Promise<Context> {
@@ -37,7 +39,19 @@ export async function createContext(req: Request, res: Response): Promise<Contex
     .limit(1);
 
   if (!user || !user.mustChangePassword === undefined) return { req, res, user: null };
-  return { req, res, user: user as Context["user"] };
+
+  // 代理登录：令牌里带 impersonatorId 时，载入原负责人信息以供横幅展示
+  let impersonator: Context["impersonator"] = null;
+  if (payload.impersonatorId) {
+    const [imp] = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.id, payload.impersonatorId))
+      .limit(1);
+    if (imp) impersonator = imp;
+  }
+
+  return { req, res, user: user as Context["user"], impersonator };
 }
 
 export async function verifyUploadAuth(req: Request) {

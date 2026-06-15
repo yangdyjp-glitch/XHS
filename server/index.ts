@@ -126,6 +126,18 @@ async function runAutoMigrations() {
     `);
     console.log("[Compass] Auto-migration: deleted_at column ensured.");
 
+    // Feature: 负责人可审计的“登录为该用户”——审计日志表
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS impersonation_logs (
+        id serial PRIMARY KEY,
+        actor_id integer NOT NULL REFERENCES users(id),
+        target_user_id integer NOT NULL REFERENCES users(id),
+        action varchar(20) NOT NULL DEFAULT 'start',
+        created_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
+    console.log("[Compass] Auto-migration: impersonation_logs table ensured.");
+
     // Clean up old /uploads/ URLs (Railway ephemeral storage, now using Supabase Storage)
     const cleanResult = await db.execute(sql`
       UPDATE notes SET cover_image = NULL WHERE cover_image LIKE '/uploads/%'

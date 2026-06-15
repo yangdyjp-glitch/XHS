@@ -12,6 +12,8 @@ export interface JwtPayload {
   userId: number;
   email: string;
   role: string;
+  // 负责人代理登录（“登录为该用户”）时携带原负责人 id，用于显示横幅与一键返回
+  impersonatorId?: number;
 }
 
 export async function hashPassword(password: string): Promise<string> {
