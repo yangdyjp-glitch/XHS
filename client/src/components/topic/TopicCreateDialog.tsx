@@ -98,10 +98,10 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
                 type="button"
                 onClick={handleSuggest}
                 disabled={!form.title.trim() || suggestMutation.isPending}
-                className="text-xs text-accent hover:text-accent-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 text-xs font-medium text-accent border border-accent bg-[#EFF6FF] hover:bg-[#DBEAFE] px-2.5 py-1 rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 title="根据全局方法论给出标题修改意见"
               >
-                {suggestMutation.isPending ? "AI 生成中..." : "✨ AI建议"}
+                {suggestMutation.isPending ? "✨ AI 生成中..." : "✨ AI建议"}
               </button>
             </div>
             <input

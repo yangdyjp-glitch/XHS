@@ -232,10 +232,10 @@ export default function TopicDetailPage() {
                 <span className="text-ink">{topic.plannedPublishDate || "未设定"}</span>
                 <button
                   onClick={() => { setEditingDate(true); setDateDraft(topic.plannedPublishDate || ""); }}
-                  className="text-xs text-accent hover:text-accent-deep border border-hairline px-1.5 py-0.5 rounded"
+                  className="text-xs text-accent border border-accent bg-[#EFF6FF] hover:bg-[#DBEAFE] px-2 py-0.5 rounded transition-colors"
                   title="修改计划发布时间"
                 >
-                  修改
+                  ✎ 修改
                 </button>
               </span>
             )}
