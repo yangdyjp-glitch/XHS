@@ -118,7 +118,7 @@ export default function DataEntryPage() {
           <div className="space-y-2 max-h-[70vh] overflow-y-auto">
             {notesQuery.isLoading && <p className="text-sm text-muted font-serif italic">加载中...</p>}
             {notesQuery.data?.length === 0 && (
-              <p className="text-sm text-muted font-serif italic">暂无已发布的笔记</p>
+              <p className="text-sm text-muted font-serif italic">暂无待录入数据的笔记</p>
             )}
             {notesQuery.data?.map((n) => {
               const avail = getAvailableSnapshots(n.publishedAt);

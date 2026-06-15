@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { notes, topics, accounts, metricSnapshots } from "../../drizzle/schema.js";
+import { SNAPSHOT_DAYS } from "../../shared/enums.js";
 
 export const noteRouter = router({
   listByTopic: protectedProcedure
@@ -70,7 +71,7 @@ export const noteRouter = router({
 
     conditions.push(eq(notes.status, "live"));
 
-    return db
+    const noteList = await db
       .select({
         id: notes.id,
         topicId: notes.topicId,
@@ -87,6 +88,33 @@ export const noteRouter = router({
       .leftJoin(accounts, eq(notes.accountId, accounts.id))
       .where(and(...conditions))
       .orderBy(desc(notes.publishedAt));
+
+    if (noteList.length === 0) return [];
+
+    // 只保留"当前有到期但尚未录入快照"的笔记：
+    // 例如 T+1 已录入后，第 2-6 天不再出现；到第 7 天 T+7 到期才重新出现。
+    const noteIds = noteList.map((n) => n.id);
+    const recorded = await db
+      .select({ noteId: metricSnapshots.noteId, daysSincePublish: metricSnapshots.daysSincePublish })
+      .from(metricSnapshots)
+      .where(inArray(metricSnapshots.noteId, noteIds));
+
+    const recordedMap = new Map<number, Set<number>>();
+    for (const r of recorded) {
+      const set = recordedMap.get(r.noteId) ?? new Set<number>();
+      set.add(r.daysSincePublish);
+      recordedMap.set(r.noteId, set);
+    }
+
+    const dayMs = 1000 * 60 * 60 * 24;
+    const now = Date.now();
+
+    return noteList.filter((n) => {
+      const daysSince = Math.floor((now - new Date(n.publishedAt).getTime()) / dayMs);
+      const recordedDays = recordedMap.get(n.id) ?? new Set<number>();
+      // 存在已到期(daysSince>=d)但尚未录入的快照天 → 仍需录入
+      return SNAPSHOT_DAYS.some((d) => daysSince >= d && !recordedDays.has(d));
+    });
   }),
 
   create: protectedProcedure
