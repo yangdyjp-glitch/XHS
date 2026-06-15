@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, gte, lte, desc, asc, sql, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, sql, isNull, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
@@ -31,8 +31,16 @@ async function getRejected(): Promise<RejectedRec[]> {
   return rows.map((r) => ({ title: r.title, topicType: r.topicType, keywords: r.keywords as string[] | null }));
 }
 
-async function aggregateData(periodStart: string, periodEnd: string, accountId?: number): Promise<ReviewInputData> {
-  const accountConditions = accountId ? [eq(accounts.id, accountId)] : [];
+// 把报告行解析为账号 id 列表：优先多账号数组，其次回退单账号，都没有则视为全矩阵(undefined)。
+function resolveReviewAccountIds(review: { accountIds: number[] | null; accountId: number | null }): number[] | undefined {
+  if (review.accountIds && review.accountIds.length > 0) return review.accountIds;
+  if (review.accountId) return [review.accountId];
+  return undefined;
+}
+
+async function aggregateData(periodStart: string, periodEnd: string, accountIds?: number[]): Promise<ReviewInputData> {
+  const hasFilter = Array.isArray(accountIds) && accountIds.length > 0;
+  const accountConditions = hasFilter ? [inArray(accounts.id, accountIds!)] : [];
   const accts = await db
     .select({ id: accounts.id, name: accounts.accountName, layer: accounts.layer })
     .from(accounts)
@@ -44,7 +52,7 @@ async function aggregateData(periodStart: string, periodEnd: string, accountId?:
     eq(notes.status, "live"),   // 只统计在线笔记，排除隐藏/删除状态
     isNull(topics.deletedAt),   // 排除已移入回收箱的选题对应的笔记
   ];
-  if (accountId) noteConditions.push(eq(notes.accountId, accountId));
+  if (hasFilter) noteConditions.push(inArray(notes.accountId, accountIds!));
 
   const noteRows = await db
     .select({
@@ -173,6 +181,7 @@ export const reviewRouter = router({
         periodStart: z.string().optional(),
         periodEnd: z.string().optional(),
         accountId: z.number().optional(),
+        accountIds: z.array(z.number()).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -191,16 +200,24 @@ export const reviewRouter = router({
         periodEnd = range.end;
       }
 
-      const data = await aggregateData(periodStart, periodEnd, input.accountId);
+      // 兼容旧入参 accountId（单号）与新入参 accountIds（一个或多个）。空/未传 = 全矩阵。
+      const merged = [
+        ...(input.accountIds || []),
+        ...(input.accountId != null ? [input.accountId] : []),
+      ];
+      const accountIds = merged.length > 0 ? Array.from(new Set(merged)) : undefined;
 
-      const scope = input.accountId ? "account" : "matrix";
+      const data = await aggregateData(periodStart, periodEnd, accountIds);
+
+      const scope = !accountIds ? "matrix" : accountIds.length === 1 ? "account" : "multi";
 
       const [review] = await db
         .insert(reviews)
         .values({
           reviewType: input.type,
           scope,
-          accountId: input.accountId || null,
+          accountId: accountIds && accountIds.length === 1 ? accountIds[0] : null,
+          accountIds: accountIds ?? null,
           periodStart,
           periodEnd,
           summaryJson: data.totals,
@@ -218,6 +235,7 @@ export const reviewRouter = router({
         periodStart: z.string().optional(),
         periodEnd: z.string().optional(),
         accountId: z.number().optional(),
+        accountIds: z.array(z.number()).optional(),
       })
     )
     .query(async ({ input }) => {
@@ -236,7 +254,13 @@ export const reviewRouter = router({
         periodEnd = range.end;
       }
 
-      return aggregateData(periodStart, periodEnd, input.accountId);
+      const merged = [
+        ...(input.accountIds || []),
+        ...(input.accountId != null ? [input.accountId] : []),
+      ];
+      const accountIds = merged.length > 0 ? Array.from(new Set(merged)) : undefined;
+
+      return aggregateData(periodStart, periodEnd, accountIds);
     }),
 
   aiAnalyze: protectedProcedure
@@ -245,7 +269,7 @@ export const reviewRouter = router({
       const [review] = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).limit(1);
       if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
 
-      const data = await aggregateData(review.periodStart, review.periodEnd, review.accountId || undefined);
+      const data = await aggregateData(review.periodStart, review.periodEnd, resolveReviewAccountIds(review));
 
       if (data.notes.length === 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "该周期内没有发布笔记，无法分析" });
@@ -295,7 +319,7 @@ export const reviewRouter = router({
       if (reviewId) {
         const [review] = await db.select().from(reviews).where(eq(reviews.id, reviewId)).limit(1);
         if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
-        data = await aggregateData(review.periodStart, review.periodEnd, review.accountId || undefined);
+        data = await aggregateData(review.periodStart, review.periodEnd, resolveReviewAccountIds(review));
 
         const [latestAnalysis] = await db
           .select()
@@ -306,7 +330,7 @@ export const reviewRouter = router({
         if (latestAnalysis) analysisResult = latestAnalysis.resultJson as any;
       } else {
         const range = getWeekRange(1);
-        data = await aggregateData(input.periodStart || range.start, input.periodEnd || range.end, input.accountId);
+        data = await aggregateData(input.periodStart || range.start, input.periodEnd || range.end, input.accountId ? [input.accountId] : undefined);
       }
 
       const now = new Date();
@@ -456,10 +480,10 @@ export const reviewRouter = router({
       if (input.reviewId) {
         const [review] = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).limit(1);
         if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "报告不存在" });
-        data = await aggregateData(review.periodStart, review.periodEnd, review.accountId || undefined);
+        data = await aggregateData(review.periodStart, review.periodEnd, resolveReviewAccountIds(review));
       } else {
         const range = getWeekRange(1);
-        data = await aggregateData(input.periodStart || range.start, input.periodEnd || range.end, input.accountId);
+        data = await aggregateData(input.periodStart || range.start, input.periodEnd || range.end, input.accountId ? [input.accountId] : undefined);
       }
 
       const now = new Date();

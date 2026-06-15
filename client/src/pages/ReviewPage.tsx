@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
+import AccountFilter from "../components/ui/AccountFilter.js";
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
@@ -48,8 +49,25 @@ export default function ReviewPage() {
   const [tab, setTab] = useState<"weekly" | "monthly">(isTeacher ? "monthly" : "weekly");
   const [selectedReview, setSelectedReview] = useState<number | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(0); // index into weeks/months list
+  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]); // 空 = 全矩阵
 
   const utils = trpc.useUtils();
+
+  // 负责人可在全部账号中多选；老师只在自己名下账号中多选。空选 = 全矩阵。
+  const leaderAccountsQuery = trpc.account.list.useQuery(undefined, {
+    enabled: isLeader,
+    refetchOnWindowFocus: false,
+  });
+  const ownerAccountsQuery = trpc.account.listByOwner.useQuery(undefined, {
+    enabled: !isLeader,
+    refetchOnWindowFocus: false,
+  });
+  const accountOptions = (isLeader ? leaderAccountsQuery.data : ownerAccountsQuery.data) || [];
+  const accountNameMap = useMemo(() => {
+    const m: Record<number, string> = {};
+    for (const a of accountOptions) m[a.id] = a.accountName;
+    return m;
+  }, [accountOptions]);
 
   const weeks = useMemo(() => getRecentWeeks(), []);
   const months = useMemo(() => getRecentMonths(), []);
@@ -90,6 +108,14 @@ export default function ReviewPage() {
   });
 
   const review = detailQuery.data;
+  // 报告涉及的账号 id：优先多账号数组，回退单账号；空 = 全矩阵
+  const reviewAccountIds: number[] = review
+    ? review.accountIds && review.accountIds.length > 0
+      ? review.accountIds
+      : review.accountId
+        ? [review.accountId]
+        : []
+    : [];
   const summaryJson = review?.summaryJson as any;
   const latestAnalysis = review?.analyses?.[0];
   const analysisResult = latestAnalysis?.resultJson as any;
@@ -137,11 +163,13 @@ export default function ReviewPage() {
                 <option key={i} value={i}>{p.label}</option>
               ))}
             </select>
+            <AccountFilter accounts={accountOptions} selected={selectedAccounts} onChange={setSelectedAccounts} />
             <button
               onClick={() => generateMutation.mutate({
                 type: tab,
                 periodStart: periods[selectedPeriod].start,
                 periodEnd: periods[selectedPeriod].end,
+                accountIds: selectedAccounts.length > 0 ? selectedAccounts : undefined,
               })}
               disabled={generateMutation.isPending}
               className="bg-ink text-card px-4 py-1.5 text-sm font-medium rounded-full hover:bg-ink-soft disabled:opacity-50"
@@ -170,7 +198,7 @@ export default function ReviewPage() {
               <div className="flex items-center justify-between">
                 <div className="font-medium text-ink">
                   {r.reviewType === "weekly" ? "周报" : "月报"}
-                  {r.scope === "account" ? " (单号)" : " (全矩阵)"}
+                  {r.scope === "account" ? " (单号)" : r.scope === "multi" ? " (多账号)" : " (全矩阵)"}
                 </div>
                 <button
                   onClick={(e) => {
@@ -209,9 +237,14 @@ export default function ReviewPage() {
                     {formatDate(review.periodStart)} – {formatDate(review.periodEnd)}
                   </h2>
                   <span className="status-pill bg-[#DBEAFE] text-accent">
-                    {review.scope === "account" ? "单号" : "全矩阵"}
+                    {review.scope === "account" ? "单号" : review.scope === "multi" ? "多账号" : "全矩阵"}
                   </span>
                 </div>
+                {reviewAccountIds.length > 0 && (
+                  <p className="mono-data text-muted mb-2">
+                    账号：{reviewAccountIds.map((id) => accountNameMap[id] || `#${id}`).join("、")}
+                  </p>
+                )}
                 {review.highlights && (
                   <p className="text-sm text-ink-soft">{review.highlights}</p>
                 )}

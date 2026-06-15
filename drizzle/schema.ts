@@ -130,6 +130,9 @@ export const reviews = pgTable("reviews", {
   reviewType: varchar("review_type", { length: 10 }).notNull(),
   scope: varchar("scope", { length: 10 }).notNull(),
   accountId: integer("account_id").references(() => accounts.id),
+  // 多账号复盘：所选的一个或多个账号 id（NULL 或空数组 = 全矩阵）。
+  // 单号时同时写入 accountId 以兼容历史读取逻辑。
+  accountIds: integer("account_ids").array(),
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),
   summaryJson: jsonb("summary_json").notNull(),

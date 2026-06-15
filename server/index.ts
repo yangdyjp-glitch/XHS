@@ -138,6 +138,12 @@ async function runAutoMigrations() {
     `);
     console.log("[Compass] Auto-migration: impersonation_logs table ensured.");
 
+    // Feature: 多账号复盘——reviews 增加 account_ids（整型数组），记录所选的一个或多个账号
+    await db.execute(sql`
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS account_ids integer[]
+    `);
+    console.log("[Compass] Auto-migration: reviews.account_ids column ensured.");
+
     // Clean up old /uploads/ URLs (Railway ephemeral storage, now using Supabase Storage)
     const cleanResult = await db.execute(sql`
       UPDATE notes SET cover_image = NULL WHERE cover_image LIKE '/uploads/%'
