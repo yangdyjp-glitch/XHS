@@ -5,6 +5,7 @@ import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { topics, accounts, users, notes, metricSnapshots, comments } from "../../drizzle/schema.js";
 import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
+import { suggestTitle as aiSuggestTitle } from "../services/ai.service.js";
 
 export const topicRouter = router({
   list: protectedProcedure
@@ -303,6 +304,24 @@ export const topicRouter = router({
 
       await db.update(topics).set(set).where(eq(topics.id, input.id));
       return { success: true, revertedToReview };
+    }),
+
+  // 新建选题时，根据全局方法论对原始标题给出 AI 修改意见 + 改写候选
+  suggestTitle: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1, "请先填写标题"),
+        topicType: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { result } = await aiSuggestTitle({
+        title: input.title.trim(),
+        topicType: input.topicType?.trim() || undefined,
+        keywords: input.keywords,
+      });
+      return result;
     }),
 
   updateStatus: protectedProcedure

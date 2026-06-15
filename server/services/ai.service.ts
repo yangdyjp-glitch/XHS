@@ -329,3 +329,67 @@ ${JUDGMENT_CONTENT_GUIDE}
     throw new Error(`AI推荐刷新失败: ${e.message || "未知错误"}`);
   }
 }
+
+export interface TitleSuggestionResult {
+  diagnosis: string;
+  suggestions: { title: string; reason: string }[];
+}
+
+// 新建选题时，针对用户写的原始标题，基于全局方法论给出「标题修改意见」+ 改写候选
+export async function suggestTitle(input: { title: string; topicType?: string; keywords?: string[] }): Promise<{ result: TitleSuggestionResult; tokensUsed: number }> {
+  const prompt = `你是小红书内容运营与标题优化专家，专注于日本留学领域。用户正在新建一个选题，下面是他写的原始标题，请基于全局方法论给出「标题修改意见」。
+
+## 原始标题
+${input.title}
+${input.topicType ? `\n## 选题类型\n${input.topicType}` : ""}
+${input.keywords && input.keywords.length ? `\n## 关键词\n${input.keywords.join("/")}` : ""}
+
+${STRICT_BANNED_WORDS.length > 0 ? `## 禁用词（改写后的标题里绝对不得出现，也不要用近义表达规避）
+${STRICT_BANNED_WORDS.map(w => `- ${w}`).join("\n")}
+` : ""}
+${JUDGMENT_CONTENT_GUIDE}
+
+## 小红书标题优化原则
+- 前几个字就要抓住眼球，善用具体数字、具体对象或反差冲突。
+- 优先判断型角度：具体的人 + 反直觉的决定 + 为什么，而不是泛泛的"XX攻略 / XX怎么写 / 时间线 / 考点速记"。
+- 口语化、有情绪、有立场，避免官方腔和形容词堆砌。
+- 长度适中（一般不超过 20 字），可用一个疑问/反问或钩子收尾。
+
+请针对原始标题：先给出简短诊断（指出它当前偏知识型还是判断型、存在什么问题），再给出 4 个改写后的更优标题（每个附一句话理由）。以JSON格式输出：
+{
+  "diagnosis": "对原标题的简短点评（1-2句）",
+  "suggestions": [
+    { "title": "改写后的标题", "reason": "为什么更好（1句话）" }
+  ]
+}
+
+只输出JSON，不要其他文字。`;
+
+  try {
+    const client = getClient();
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed: TitleSuggestionResult = jsonMatch
+      ? JSON.parse(jsonMatch[0])
+      : { diagnosis: text, suggestions: [] };
+
+    const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    const result: TitleSuggestionResult = {
+      diagnosis: scrub(parsed.diagnosis || ""),
+      suggestions: (parsed.suggestions || []).map((s) => ({ title: scrub(s.title || ""), reason: scrub(s.reason || "") })),
+    };
+
+    return { result, tokensUsed };
+  } catch (e: any) {
+    if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
+    throw new Error(`AI标题建议失败: ${e.message || "未知错误"}`);
+  }
+}

@@ -18,6 +18,7 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
     refetchOnWindowFocus: false,
   });
   const createMutation = trpc.topic.create.useMutation({ onSuccess: onCreated });
+  const suggestMutation = trpc.topic.suggestTitle.useMutation();
 
   const [form, setForm] = useState({
     title: initialTitle || "",
@@ -44,6 +45,15 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  const handleSuggest = () => {
+    if (!form.title.trim() || suggestMutation.isPending) return;
+    suggestMutation.mutate({
+      title: form.title.trim(),
+      topicType: form.topicType.trim() || undefined,
+      keywords: form.keywords ? form.keywords.split(/[,，\s]+/).filter(Boolean) : undefined,
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +92,18 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
           )}
 
           <div>
-            <label className="eyebrow block mb-1.5">标题 *</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="eyebrow">标题 *</label>
+              <button
+                type="button"
+                onClick={handleSuggest}
+                disabled={!form.title.trim() || suggestMutation.isPending}
+                className="text-xs text-accent hover:text-accent-deep disabled:opacity-40 disabled:cursor-not-allowed"
+                title="根据全局方法论给出标题修改意见"
+              >
+                {suggestMutation.isPending ? "AI 生成中..." : "✨ AI建议"}
+              </button>
+            </div>
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -94,6 +115,32 @@ export default function TopicCreateDialog({ onClose, onCreated, initialTitle, in
               <p className="mt-1.5 text-xs text-[#92400E] bg-[#FEF3C7] px-2 py-1.5 rounded">
                 提示：标题可能含禁用词 <span className="font-medium">{bannedHits.join("、")}</span>，建议检查后再提交（不强制）
               </p>
+            )}
+            {suggestMutation.isError && (
+              <p className="mt-1.5 text-xs text-[#991B1B]">{suggestMutation.error?.message || "AI 建议生成失败"}</p>
+            )}
+            {suggestMutation.data && (
+              <div className="mt-2 border border-hairline bg-paper rounded p-2.5 space-y-2 max-h-60 overflow-y-auto">
+                {suggestMutation.data.diagnosis && (
+                  <p className="text-xs text-ink-soft leading-relaxed">{suggestMutation.data.diagnosis}</p>
+                )}
+                {suggestMutation.data.suggestions?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="eyebrow">点击采用建议标题</p>
+                    {suggestMutation.data.suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setForm({ ...form, title: s.title })}
+                        className="w-full text-left px-2 py-1.5 rounded border border-hairline hover:bg-[#EFF6FF] hover:border-accent transition-colors"
+                      >
+                        <div className="text-sm text-ink font-medium">{s.title}</div>
+                        {s.reason && <div className="text-xs text-muted mt-0.5">{s.reason}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
