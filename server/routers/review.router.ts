@@ -249,6 +249,16 @@ export const reviewRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "该周期内没有发布笔记，无法分析" });
       }
 
+      // 同步刷新报告概览：报告生成后底层数据可能有变动（如发布时间回填、补录笔记），
+      // 让 KPI 概览与本次分析实际使用的数据保持一致，避免出现"概览18篇、分析21篇"的不一致。
+      await db
+        .update(reviews)
+        .set({
+          summaryJson: data.totals,
+          highlights: `发布${data.totals.noteCount}篇笔记，总曝光${data.totals.totalImpression}，总阅读${data.totals.totalView}`,
+        })
+        .where(eq(reviews.id, review.id));
+
       const { result, tokensUsed, prompt } = await analyzePerformance(data);
 
       const [analysis] = await db
