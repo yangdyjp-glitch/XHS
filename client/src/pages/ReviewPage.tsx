@@ -93,6 +93,13 @@ export default function ReviewPage() {
   const summaryJson = review?.summaryJson as any;
   const latestAnalysis = review?.analyses?.[0];
   const analysisResult = latestAnalysis?.resultJson as any;
+  // 兜底：万一某字段不是数组（历史数据或模型偶发返回字符串），统一规整为数组，避免 .map 崩溃
+  const toArr = (x: any): any[] => (Array.isArray(x) ? x : []);
+  const topPerformers = toArr(analysisResult?.topPerformers);
+  const bottomPerformers = toArr(analysisResult?.bottomPerformers);
+  const contentFormulas = toArr(analysisResult?.contentFormulas);
+  const trends = toArr(analysisResult?.trends);
+  const improvements = toArr(analysisResult?.improvements);
 
   return (
     <div>
@@ -255,10 +262,10 @@ export default function ReviewPage() {
                   <div className="space-y-5 text-sm">
                     <p className="text-ink-soft leading-relaxed">{analysisResult.summary}</p>
 
-                    {analysisResult.topPerformers?.length > 0 && (
+                    {topPerformers.length > 0 && (
                       <div>
                         <p className="eyebrow mb-2 text-[#166534]">表现优异</p>
-                        {analysisResult.topPerformers.map((t: any, i: number) => (
+                        {topPerformers.map((t: any, i: number) => (
                           <div key={i} className="flex gap-2 py-1.5 border-b border-hairline last:border-0">
                             <span className="text-[#166534] shrink-0 font-mono text-xs">+</span>
                             <span className="text-ink-soft"><strong className="text-ink">{t.title}</strong> — {t.reason}</span>
@@ -267,10 +274,10 @@ export default function ReviewPage() {
                       </div>
                     )}
 
-                    {analysisResult.bottomPerformers?.length > 0 && (
+                    {bottomPerformers.length > 0 && (
                       <div>
                         <p className="eyebrow mb-2 text-[#9A3412]">有待改进</p>
-                        {analysisResult.bottomPerformers.map((t: any, i: number) => (
+                        {bottomPerformers.map((t: any, i: number) => (
                           <div key={i} className="flex gap-2 py-1.5 border-b border-hairline last:border-0">
                             <span className="text-[#9A3412] shrink-0 font-mono text-xs">-</span>
                             <span className="text-ink-soft"><strong className="text-ink">{t.title}</strong> — {t.reason}</span>
@@ -279,33 +286,33 @@ export default function ReviewPage() {
                       </div>
                     )}
 
-                    {analysisResult.contentFormulas?.length > 0 && (
+                    {contentFormulas.length > 0 && (
                       <div>
                         <p className="eyebrow mb-2">内容公式</p>
                         <ul className="space-y-1 text-ink-soft">
-                          {analysisResult.contentFormulas.map((f: string, i: number) => (
+                          {contentFormulas.map((f: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-accent font-mono text-xs">*</span>{f}</li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {analysisResult.trends?.length > 0 && (
+                    {trends.length > 0 && (
                       <div>
                         <p className="eyebrow mb-2">趋势洞察</p>
                         <ul className="space-y-1 text-ink-soft">
-                          {analysisResult.trends.map((t: string, i: number) => (
+                          {trends.map((t: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-[#6D28D9] font-mono text-xs">*</span>{t}</li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {analysisResult.improvements?.length > 0 && (
+                    {improvements.length > 0 && (
                       <div>
                         <p className="eyebrow mb-2">改进建议</p>
                         <ul className="space-y-1 text-ink-soft">
-                          {analysisResult.improvements.map((imp: string, i: number) => (
+                          {improvements.map((imp: string, i: number) => (
                             <li key={i} className="flex gap-2"><span className="text-[#9A3412] font-mono text-xs">*</span>{imp}</li>
                           ))}
                         </ul>

@@ -148,11 +148,21 @@ ${JUDGMENT_CONTENT_GUIDE}
 请通过 submit_analysis 工具提交结果（字段含义见上）。`;
 
   try {
-    const { result, tokensUsed } = await callStructured<AnalysisResult>(
+    const { result: raw, tokensUsed } = await callStructured<AnalysisResult>(
       prompt,
       { name: "submit_analysis", description: "提交本期复盘分析结果", input_schema: ANALYSIS_SCHEMA },
       4096
     );
+    // 兜底：把各数组字段统一规整为数组（模型偶发把数组写成字符串），避免前端 .map 崩溃
+    const arr = (x: any): any[] => (Array.isArray(x) ? x : []);
+    const result: AnalysisResult = {
+      summary: typeof raw?.summary === "string" ? raw.summary : String(raw?.summary ?? ""),
+      topPerformers: arr(raw?.topPerformers),
+      bottomPerformers: arr(raw?.bottomPerformers),
+      contentFormulas: arr(raw?.contentFormulas),
+      trends: arr(raw?.trends),
+      improvements: arr(raw?.improvements),
+    };
     return { result, tokensUsed, prompt };
   } catch (e: any) {
     if (e.message?.includes("ANTHROPIC_API_KEY")) throw e;
@@ -237,14 +247,14 @@ ${JUDGMENT_CONTENT_GUIDE}
       4096
     );
 
-    // 兜底：万一模型仍输出禁用词，从策略与推荐文本中剔除
-    const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    // 兜底：规整结构为数组 + 剔除禁用词（scrub 对非字符串安全）
+    const scrub = (s: any) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), typeof s === "string" ? s : "");
     result.strategy = scrub(result.strategy);
-    result.recommendations = (result.recommendations || []).map((r) => ({
+    result.recommendations = (Array.isArray(result.recommendations) ? result.recommendations : []).map((r: any) => ({
       ...r,
       title: scrub(r.title),
       reason: scrub(r.reason),
-      keywords: (r.keywords || []).map(scrub),
+      keywords: (Array.isArray(r.keywords) ? r.keywords : []).map(scrub),
     }));
 
     return { result, tokensUsed, prompt };
@@ -305,12 +315,12 @@ ${JUDGMENT_CONTENT_GUIDE}
       2000
     );
 
-    const scrub = (s: string) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), s || "");
+    const scrub = (s: any) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), typeof s === "string" ? s : "");
     const recommendation: SingleRecommendation = {
       ...parsed,
       title: scrub(parsed.title),
       reason: scrub(parsed.reason),
-      keywords: (parsed.keywords || []).map(scrub),
+      keywords: (Array.isArray(parsed.keywords) ? parsed.keywords : []).map(scrub),
     };
 
     return { recommendation, tokensUsed, prompt };
