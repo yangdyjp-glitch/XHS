@@ -275,6 +275,36 @@ export const topicRouter = router({
       return { success: true };
     }),
 
+  // 修改计划发布时间：编辑/负责人任意状态直接改；老师在「已通过/写作中」修改则退回待审批
+  updatePlannedDate: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        plannedPublishDate: z.string().min(1, "请填写计划发布时间"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
+
+      const set: Record<string, unknown> = {
+        plannedPublishDate: input.plannedPublishDate,
+        updatedAt: new Date(),
+      };
+      let revertedToReview = false;
+
+      // 老师修改「已通过」或「写作中」的选题 → 退回「待审批」重新审批
+      // 编辑 / 负责人：任意状态直接改，状态不变
+      // 老师在「待审批 / 已发布」：直接改，状态不变
+      if (ctx.user.role === "teacher" && (topic.status === "approved" || topic.status === "writing")) {
+        set.status = "pending_review";
+        revertedToReview = true;
+      }
+
+      await db.update(topics).set(set).where(eq(topics.id, input.id));
+      return { success: true, revertedToReview };
+    }),
+
   updateStatus: protectedProcedure
     .input(z.object({
       id: z.number(),

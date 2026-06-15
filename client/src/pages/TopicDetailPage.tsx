@@ -44,6 +44,7 @@ export default function TopicDetailPage() {
   const statusMutation = trpc.topic.updateStatus.useMutation({ onSuccess: () => topicQuery.refetch() });
   const deleteMutation = trpc.topic.delete.useMutation({ onSuccess: () => navigate("/") });
   const updateMutation = trpc.topic.update.useMutation({ onSuccess: () => topicQuery.refetch() });
+  const updateDateMutation = trpc.topic.updatePlannedDate.useMutation({ onSuccess: () => topicQuery.refetch() });
   const createNoteMutation = trpc.note.create.useMutation({ onSuccess: () => notesQuery.refetch() });
   const deleteNoteMutation = trpc.note.delete.useMutation({
     onSuccess: () => notesQuery.refetch(),
@@ -58,6 +59,9 @@ export default function TopicDetailPage() {
   // Feature 5: Title editing
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  // 修改计划发布时间
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
 
   const topic = topicQuery.data;
 
@@ -95,6 +99,20 @@ export default function TopicDetailPage() {
       updateMutation.mutate({ id: topicId, title: titleDraft.trim() });
     }
     setEditingTitle(false);
+  };
+
+  // 修改计划发布时间：老师在「已通过/写作中」修改会退回待审批
+  const dateEditWillRevert =
+    user?.role === "teacher" && (topic.status === "approved" || topic.status === "writing");
+
+  const handleSaveDate = () => {
+    if (!dateDraft || updateDateMutation.isPending) return;
+    if (dateDraft === topic.plannedPublishDate) { setEditingDate(false); return; }
+    if (dateEditWillRevert && !window.confirm("修改计划发布时间后，该选题将退回「待审批」阶段，需要重新审批。确定修改吗？")) return;
+    updateDateMutation.mutate(
+      { id: topicId, plannedPublishDate: dateDraft },
+      { onSuccess: () => setEditingDate(false) },
+    );
   };
 
   const getStatusAction = () => {
@@ -194,7 +212,38 @@ export default function TopicDetailPage() {
           </div>
           <div>
             <span className="text-muted">计划发布：</span>
-            <span className="text-ink">{topic.plannedPublishDate || "未设定"}</span>
+            {editingDate ? (
+              <span className="inline-flex items-center gap-2 flex-wrap">
+                <input
+                  type="date"
+                  value={dateDraft}
+                  onChange={(e) => setDateDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveDate(); if (e.key === "Escape") setEditingDate(false); }}
+                  className="border border-hairline bg-card px-2 py-1 text-sm focus:outline-none focus:border-accent"
+                  autoFocus
+                />
+                <button onClick={handleSaveDate} disabled={updateDateMutation.isPending} className="text-sm text-accent hover:text-accent-deep disabled:opacity-50">
+                  {updateDateMutation.isPending ? "保存中..." : "保存"}
+                </button>
+                <button onClick={() => setEditingDate(false)} className="text-sm text-muted hover:text-ink">取消</button>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-ink">{topic.plannedPublishDate || "未设定"}</span>
+                <button
+                  onClick={() => { setEditingDate(true); setDateDraft(topic.plannedPublishDate || ""); }}
+                  className="text-xs text-accent hover:text-accent-deep border border-hairline px-1.5 py-0.5 rounded"
+                  title="修改计划发布时间"
+                >
+                  修改
+                </button>
+              </span>
+            )}
+            {editingDate && dateEditWillRevert && (
+              <p className="mt-1.5 text-xs text-[#92400E] bg-[#FEF3C7] px-2 py-1 rounded">
+                提示：修改后将退回「待审批」阶段，需要重新审批
+              </p>
+            )}
           </div>
           <div className="col-span-2">
             <span className="text-muted">关键词：</span>
