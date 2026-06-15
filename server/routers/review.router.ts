@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, gte, lte, desc, asc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, sql, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
@@ -41,6 +41,8 @@ async function aggregateData(periodStart: string, periodEnd: string, accountId?:
   const noteConditions = [
     gte(notes.publishedAt, new Date(periodStart)),
     lte(notes.publishedAt, new Date(periodEnd + "T23:59:59Z")),
+    eq(notes.status, "live"),   // 只统计在线笔记，排除隐藏/删除状态
+    isNull(topics.deletedAt),   // 排除已移入回收箱的选题对应的笔记
   ];
   if (accountId) noteConditions.push(eq(notes.accountId, accountId));
 
