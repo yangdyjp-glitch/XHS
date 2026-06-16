@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, gte, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, gte, desc, sql, isNull } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { accounts, users, notes, topics, metricSnapshots } from "../../drizzle/schema.js";
@@ -26,8 +26,10 @@ function computeScore(m: { impression: number; view: number; likeCount: number; 
   return m.impression + m.view * 2 + m.likeCount * 3 + m.collect * 4 + m.commentCount * 5 + m.shareCount * 3;
 }
 
-async function fetchAllNotesWithScores(since?: Date): Promise<NoteWithScore[]> {
-  const conditions = since ? [gte(notes.publishedAt, since)] : [];
+async function fetchAllNotesWithScores(since?: Date, accountId?: number): Promise<NoteWithScore[]> {
+  const conditions = [];
+  if (since) conditions.push(gte(notes.publishedAt, since));
+  if (accountId) conditions.push(eq(notes.accountId, accountId));
 
   const noteRows = await db
     .select({
@@ -45,7 +47,7 @@ async function fetchAllNotesWithScores(since?: Date): Promise<NoteWithScore[]> {
     .leftJoin(topics, eq(notes.topicId, topics.id))
     .leftJoin(accounts, eq(notes.accountId, accounts.id))
     .leftJoin(users, eq(topics.creatorId, users.id))
-    .where(conditions.length > 0 ? conditions[0] : undefined)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(notes.publishedAt));
 
   if (noteRows.length === 0) return [];
@@ -157,7 +159,7 @@ export const dashboardRouter = router({
   }),
 
   rankings: protectedProcedure
-    .input(z.object({ period: z.enum(["7", "14", "30", "all"]) }))
+    .input(z.object({ period: z.enum(["7", "14", "30", "all"]), accountId: z.number().optional() }))
     .query(async ({ input }) => {
       const now = new Date();
       let since: Date | undefined;
@@ -166,7 +168,7 @@ export const dashboardRouter = router({
         since.setDate(now.getDate() - parseInt(input.period));
       }
 
-      const allNotes = await fetchAllNotesWithScores(since);
+      const allNotes = await fetchAllNotesWithScores(since, input.accountId);
       const sorted = [...allNotes].sort((a, b) => b.score - a.score);
       const top5 = sorted.slice(0, 5);
 

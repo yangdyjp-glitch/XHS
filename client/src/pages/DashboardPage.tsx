@@ -53,9 +53,14 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
 export default function DashboardPage() {
   const [period, setPeriod] = useState<"7" | "14" | "30" | "all">("30");
   const [typeFilter, setTypeFilter] = useState<string>("");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(""); // "" = 全部账号
+  const selId = selectedAccountId ? Number(selectedAccountId) : null;
 
   const dashQuery = trpc.dashboard.overview.useQuery(undefined, { refetchOnWindowFocus: false });
-  const rankingsQuery = trpc.dashboard.rankings.useQuery({ period }, { refetchOnWindowFocus: false });
+  const rankingsQuery = trpc.dashboard.rankings.useQuery(
+    { period, accountId: selId ?? undefined },
+    { refetchOnWindowFocus: false }
+  );
 
   const data = dashQuery.data;
   const rankings = rankingsQuery.data;
@@ -70,14 +75,28 @@ export default function DashboardPage() {
   const { accounts, totals } = data;
   const statusMap = totals.topicsByStatus as Record<string, number>;
 
+  // 账号筛选：选中某账号时，KPI 概览与健康度卡片只看该账号；未选则看全矩阵
+  const shownAccounts = selId ? accounts.filter((a) => a.id === selId) : accounts;
+  const displayTotals = selId
+    ? {
+        totalAccounts: shownAccounts.length,
+        totalNotesThisWeek: shownAccounts.reduce((s, a) => s + a.weekPublished, 0),
+        totalImpression: shownAccounts.reduce((s, a) => s + a.totalImpression, 0),
+        totalView: shownAccounts.reduce((s, a) => s + a.totalView, 0),
+        totalLike: shownAccounts.reduce((s, a) => s + a.totalLike, 0),
+        totalCollect: shownAccounts.reduce((s, a) => s + a.totalCollect, 0),
+        totalComment: shownAccounts.reduce((s, a) => s + a.totalComment, 0),
+      }
+    : totals;
+
   const kpiItems = [
-    { eyebrow: "活跃账号", value: totals.totalAccounts, unit: "个", color: "" },
-    { eyebrow: "本周发布", value: totals.totalNotesThisWeek, unit: "篇", color: "" },
-    { eyebrow: "总曝光", value: totals.totalImpression, unit: "", color: "text-[#2563EB]" },
-    { eyebrow: "总阅读", value: totals.totalView, unit: "", color: "text-[#059669]" },
-    { eyebrow: "总点赞", value: totals.totalLike, unit: "", color: "text-[#DC2626]" },
-    { eyebrow: "总收藏", value: totals.totalCollect, unit: "", color: "text-[#D97706]" },
-    { eyebrow: "总评论", value: totals.totalComment, unit: "", color: "text-[#7C3AED]" },
+    { eyebrow: "活跃账号", value: displayTotals.totalAccounts, unit: "个", color: "" },
+    { eyebrow: "本周发布", value: displayTotals.totalNotesThisWeek, unit: "篇", color: "" },
+    { eyebrow: "总曝光", value: displayTotals.totalImpression, unit: "", color: "text-[#2563EB]" },
+    { eyebrow: "总阅读", value: displayTotals.totalView, unit: "", color: "text-[#059669]" },
+    { eyebrow: "总点赞", value: displayTotals.totalLike, unit: "", color: "text-[#DC2626]" },
+    { eyebrow: "总收藏", value: displayTotals.totalCollect, unit: "", color: "text-[#D97706]" },
+    { eyebrow: "总评论", value: displayTotals.totalComment, unit: "", color: "text-[#7C3AED]" },
   ];
 
   return (
@@ -85,11 +104,22 @@ export default function DashboardPage() {
       {/* Editorial Header */}
       <div>
         <p className="eyebrow mb-2">总览</p>
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between gap-4">
           <h1 className="editorial-heading text-[36px] leading-tight">矩阵总览</h1>
-          <span className="mono-data text-muted">
-            数据快照 · {new Date().toLocaleDateString("zh-CN")}
-          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            <Dropdown
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              className="w-44"
+              options={[
+                { value: "", label: "全部账号" },
+                ...accounts.map((a) => ({ value: String(a.id), label: a.accountName })),
+              ]}
+            />
+            <span className="mono-data text-muted hidden md:inline">
+              数据快照 · {new Date().toLocaleDateString("zh-CN")}
+            </span>
+          </div>
         </div>
         <div className="h-[1.5px] bg-ink mt-3" />
       </div>
@@ -131,7 +161,7 @@ export default function DashboardPage() {
       <div>
         <p className="eyebrow mb-3">账号健康度</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-hairline card-surface overflow-hidden">
-          {accounts.map((acct) => {
+          {shownAccounts.map((acct) => {
             const health = HEALTH_LABEL[acct.health] || HEALTH_LABEL.green;
             const pct = Math.min(100, (acct.weekPublished / (acct.weeklyTarget || 3)) * 100);
             return (
