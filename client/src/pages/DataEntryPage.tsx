@@ -36,11 +36,9 @@ export default function DataEntryPage() {
     { noteId: selectedNote! },
     { enabled: !!selectedNote, refetchOnWindowFocus: false }
   );
-  const [justSaved, setJustSaved] = useState(false);
   const upsertMutation = trpc.metric.upsert.useMutation({
     onSuccess: (data) => {
       setSaveMsg(data.updated ? "已更新" : "已保存");
-      setJustSaved(true);
       metricsQuery.refetch();
       setTimeout(() => setSaveMsg(""), 2000);
     },
@@ -50,12 +48,12 @@ export default function DataEntryPage() {
   const availableDays = note ? getAvailableSnapshots(note.publishedAt) : [];
   const existingSnapshot = metricsQuery.data?.find((m) => m.daysSincePublish === selectedDay);
 
+  // 始终让表单反映「当前笔记 + 当前天数」已存的快照。
+  // 不再用 justSaved 跳过刷新——那个标志会在切换笔记后泄漏，导致新笔记的已有数据
+  // 不被载入、表单显示为空，员工再保存就把原数据覆盖成 0，造成保存后数据丢失。
+  // 保留 if(snap) 守卫：没有快照时不强制清空，避免冲掉正在输入但尚未保存的内容。
   useEffect(() => {
     if (!metricsQuery.data) return;
-    if (justSaved) {
-      setJustSaved(false);
-      return;
-    }
     const snap = metricsQuery.data.find((m) => m.daysSincePublish === selectedDay);
     if (snap) {
       setForm({
