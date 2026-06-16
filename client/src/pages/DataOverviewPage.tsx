@@ -2,6 +2,18 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { SNAPSHOT_DAYS } from "@shared/enums.js";
 
+// 可排序的列：发布时长、账号，以及当前所选天数(T+N)下的各项指标
+type SortKey =
+  | "age"
+  | "account"
+  | "impression"
+  | "view"
+  | "like"
+  | "collect"
+  | "comment"
+  | "share"
+  | "engagement";
+
 function daysSincePublish(publishedAt: string | Date): number {
   const pub = new Date(publishedAt);
   const now = new Date();
@@ -82,7 +94,15 @@ export default function DataOverviewPage() {
   const [filterEnd, setFilterEnd] = useState(() => toYMD(new Date()));
   const [expandedNote, setExpandedNote] = useState<number | null>(null);
   const [snapshotDay, setSnapshotDay] = useState<number>(SNAPSHOT_DAYS[0]); // 当前查看的天数（T+N）
-  const [ageSort, setAgeSort] = useState<"asc" | "desc">("asc"); // asc=发布时长升序(发布时间从近到远) desc=从远到近
+  // 排序：一次仅一列生效。点同列切方向，点他列换列。默认按发布时长升序（最新在前）。
+  // 数值指标按当前所选天数(T+N)的快照值排序；无该天数据的笔记恒沉底。
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "age", dir: "asc" });
+  const handleSort = (key: SortKey) =>
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "age" || key === "account" ? "asc" : "desc" } // 数值列默认从高到低
+    );
   const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
   const notesQuery = trpc.note.listWithMetrics.useQuery(
     { accountIds: filterAccounts.length > 0 ? filterAccounts : undefined },
@@ -97,13 +117,68 @@ export default function DataOverviewPage() {
       if (filterEnd && pub > filterEnd) return false;
       return true;
     });
-    // 按发布时间排序：asc=发布时长从小到大（最新发布在前，发布时间从近到远）；desc 相反
+
+    // 取当前所选天数(T+N)的快照值用于数值排序；无该天快照返回 null（排序时恒沉底）
+    const metricValue = (n: (typeof filtered)[number]): number | null => {
+      const snap = n.metrics.find((m) => m.daysSincePublish === snapshotDay);
+      if (!snap) return null;
+      switch (sort.key) {
+        case "impression": return snap.impression;
+        case "view": return snap.view;
+        case "like": return snap.likeCount;
+        case "collect": return snap.collect;
+        case "comment": return snap.commentCount;
+        case "share": return snap.shareCount ?? 0;
+        case "engagement":
+          return snap.impression > 0
+            ? (snap.likeCount + snap.collect + snap.commentCount + (snap.shareCount ?? 0)) / snap.impression
+            : 0;
+        default: return null;
+      }
+    };
+
+    const dirMul = sort.dir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
-      const ta = new Date(a.publishedAt).getTime();
-      const tb = new Date(b.publishedAt).getTime();
-      return ageSort === "asc" ? tb - ta : ta - tb;
+      // 发布时长：asc=最新发布在前（发布时间从近到远），以发布时间倒序实现
+      if (sort.key === "age") {
+        return dirMul * (new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      }
+      if (sort.key === "account") {
+        return dirMul * (a.accountName || "").localeCompare(b.accountName || "", "zh-Hans-CN");
+      }
+      // 数值指标：无当前天数据者恒沉底（与升降序无关）
+      const va = metricValue(a);
+      const vb = metricValue(b);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return dirMul * (va - vb);
     });
-  }, [notesQuery.data, filterStart, filterEnd, ageSort]);
+  }, [notesQuery.data, filterStart, filterEnd, sort, snapshotDay]);
+
+  // 表头排序按钮：当前排序列高亮并显示方向箭头，其余列显示淡箭头提示「可排序」
+  const sortBtn = (key: SortKey, label: string) => {
+    const active = sort.key === key;
+    const title = !active
+      ? "点击按此列排序"
+      : key === "age"
+        ? (sort.dir === "asc" ? "发布时间从近到远（点击切换为从远到近）" : "发布时间从远到近（点击切换为从近到远）")
+        : key === "account"
+          ? (sort.dir === "asc" ? "账号名升序（点击切换为降序）" : "账号名降序（点击切换为升序）")
+          : (sort.dir === "asc" ? "数值从低到高（点击切换为从高到低）" : "数值从高到低（点击切换为从低到高）");
+    return (
+      <button
+        onClick={() => handleSort(key)}
+        title={title}
+        className={`eyebrow inline-flex items-center gap-0.5 hover:text-ink transition-colors cursor-pointer ${active ? "text-ink" : ""}`}
+      >
+        {label}
+        <span className={`text-[9px] leading-none ${active ? "" : "opacity-30"}`}>
+          {active ? (sort.dir === "asc" ? "▲" : "▼") : "▲"}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div>
@@ -153,17 +228,8 @@ export default function DataOverviewPage() {
             <thead>
               <tr className="border-b border-ink">
                 <th className="px-3 py-2.5 text-left eyebrow">笔记</th>
-                <th className="px-2 py-2.5 text-left eyebrow w-20">账号</th>
-                <th className="px-2 py-2.5 text-center w-24">
-                  <button
-                    onClick={() => setAgeSort((s) => (s === "asc" ? "desc" : "asc"))}
-                    title={ageSort === "asc" ? "当前：发布时间从近到远（点击切换为从远到近）" : "当前：发布时间从远到近（点击切换为从近到远）"}
-                    className="eyebrow inline-flex items-center gap-0.5 hover:text-ink transition-colors cursor-pointer"
-                  >
-                    发布时长
-                    <span className="text-[9px] leading-none">{ageSort === "asc" ? "▲" : "▼"}</span>
-                  </button>
-                </th>
+                <th className="px-2 py-2.5 text-left w-20">{sortBtn("account", "账号")}</th>
+                <th className="px-2 py-2.5 text-center w-24">{sortBtn("age", "发布时长")}</th>
                 <th className="px-2 py-1.5 text-center w-28">
                   <div className="eyebrow mb-1">天数</div>
                   <div className="flex gap-1 justify-center">
@@ -181,13 +247,13 @@ export default function DataOverviewPage() {
                     ))}
                   </div>
                 </th>
-                <th className="px-2 py-2.5 text-right eyebrow">曝光</th>
-                <th className="px-2 py-2.5 text-right eyebrow">阅读</th>
-                <th className="px-2 py-2.5 text-right eyebrow">点赞</th>
-                <th className="px-2 py-2.5 text-right eyebrow">收藏</th>
-                <th className="px-2 py-2.5 text-right eyebrow">评论</th>
-                <th className="px-2 py-2.5 text-right eyebrow">分享</th>
-                <th className="px-2 py-2.5 text-right eyebrow">互动率</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("impression", "曝光")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("view", "阅读")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("like", "点赞")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("collect", "收藏")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("comment", "评论")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("share", "分享")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("engagement", "互动率")}</th>
                 <th className="px-2 py-2.5 text-center eyebrow pr-3 w-16">链接</th>
               </tr>
             </thead>
