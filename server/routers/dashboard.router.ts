@@ -112,11 +112,18 @@ export const dashboardRouter = router({
     const recentNotes = allNotes.filter((n) => new Date(n.publishedAt) >= thirtyDaysAgo);
     const thisWeekNotes = allNotes.filter((n) => new Date(n.publishedAt) >= weekStart);
 
-    const topicCounts = await db
-      .select({ status: topics.status, count: sql<number>`count(*)::int` })
+    // 按「账号 + 状态」统计选题数（排除回收箱），供选题进度按账号筛选
+    const topicCountsRaw = await db
+      .select({ accountId: topics.accountId, status: topics.status, count: sql<number>`count(*)::int` })
       .from(topics)
-      .where(isNull(topics.deletedAt)) // 排除回收箱中的选题，口径与看板一致
-      .groupBy(topics.status);
+      .where(isNull(topics.deletedAt))
+      .groupBy(topics.accountId, topics.status);
+
+    // 全矩阵选题进度（所有账号合计），保持原口径
+    const matrixTopicsByStatus: Record<string, number> = {};
+    for (const t of topicCountsRaw) {
+      matrixTopicsByStatus[t.status] = (matrixTopicsByStatus[t.status] || 0) + t.count;
+    }
 
     const accountStats = accts.map((acct) => {
       const acctWeekNotes = thisWeekNotes.filter((n) => n.accountName === acct.accountName);
@@ -134,11 +141,18 @@ export const dashboardRouter = router({
       if (weekPublished < target * 0.5) health = "red";
       else if (weekPublished < target) health = "yellow";
 
+      // 该账号各状态的选题数（供前端按账号合计选题进度）
+      const topicsByStatus: Record<string, number> = {};
+      for (const t of topicCountsRaw) {
+        if (t.accountId === acct.id) topicsByStatus[t.status] = (topicsByStatus[t.status] || 0) + t.count;
+      }
+
       return {
         ...acct,
         weekPublished,
         recentNoteCount: acctRecentNotes.length,
         totalImpression, totalView, totalLike, totalCollect, totalComment,
+        topicsByStatus,
         health,
       };
     });
@@ -152,7 +166,7 @@ export const dashboardRouter = router({
       totalLike: accountStats.reduce((s, a) => s + a.totalLike, 0),
       totalCollect: accountStats.reduce((s, a) => s + a.totalCollect, 0),
       totalComment: accountStats.reduce((s, a) => s + a.totalComment, 0),
-      topicsByStatus: Object.fromEntries(topicCounts.map((t) => [t.status, t.count])),
+      topicsByStatus: matrixTopicsByStatus,
     };
 
     return { accounts: accountStats, totals: matrixTotals };

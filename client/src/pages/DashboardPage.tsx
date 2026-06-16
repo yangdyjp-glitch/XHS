@@ -73,7 +73,6 @@ export default function DashboardPage() {
   }
 
   const { accounts, totals } = data;
-  const statusMap = totals.topicsByStatus as Record<string, number>;
 
   // 账号筛选：选中账号时，KPI 概览与健康度卡片只看所选账号(可多选)；未选则看全矩阵
   const shownAccounts = selectedAccounts.length > 0 ? accounts.filter((a) => selectedAccounts.includes(a.id)) : accounts;
@@ -88,6 +87,15 @@ export default function DashboardPage() {
         totalComment: shownAccounts.reduce((s, a) => s + a.totalComment, 0),
       }
     : totals;
+
+  // 选题进度也跟随账号筛选：选中账号时合计这些账号的各状态选题数，否则用全矩阵
+  const statusMap: Record<string, number> = selectedAccounts.length > 0
+    ? shownAccounts.reduce((acc, a) => {
+        const m = a.topicsByStatus || {};
+        for (const k of Object.keys(m)) acc[k] = (acc[k] || 0) + m[k];
+        return acc;
+      }, {} as Record<string, number>)
+    : (totals.topicsByStatus as Record<string, number>);
 
   const kpiItems = [
     { eyebrow: "活跃账号", value: displayTotals.totalAccounts, unit: "个", color: "" },
