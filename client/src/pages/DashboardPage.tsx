@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
 import { ACCOUNT_LAYER, TOPIC_STATUS } from "@shared/enums.js";
 import Dropdown from "../components/ui/Dropdown.js";
+import AccountFilter from "../components/ui/AccountFilter.js";
 
 const HEALTH_DOT: Record<string, string> = {
   green: "bg-[#166534]",
@@ -53,12 +54,11 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
 export default function DashboardPage() {
   const [period, setPeriod] = useState<"7" | "14" | "30" | "all">("30");
   const [typeFilter, setTypeFilter] = useState<string>("");
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(""); // "" = 全部账号
-  const selId = selectedAccountId ? Number(selectedAccountId) : null;
+  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]); // 空 = 全部账号
 
   const dashQuery = trpc.dashboard.overview.useQuery(undefined, { refetchOnWindowFocus: false });
   const rankingsQuery = trpc.dashboard.rankings.useQuery(
-    { period, accountId: selId ?? undefined },
+    { period, accountIds: selectedAccounts.length > 0 ? selectedAccounts : undefined },
     { refetchOnWindowFocus: false }
   );
 
@@ -75,9 +75,9 @@ export default function DashboardPage() {
   const { accounts, totals } = data;
   const statusMap = totals.topicsByStatus as Record<string, number>;
 
-  // 账号筛选：选中某账号时，KPI 概览与健康度卡片只看该账号；未选则看全矩阵
-  const shownAccounts = selId ? accounts.filter((a) => a.id === selId) : accounts;
-  const displayTotals = selId
+  // 账号筛选：选中账号时，KPI 概览与健康度卡片只看所选账号(可多选)；未选则看全矩阵
+  const shownAccounts = selectedAccounts.length > 0 ? accounts.filter((a) => selectedAccounts.includes(a.id)) : accounts;
+  const displayTotals = selectedAccounts.length > 0
     ? {
         totalAccounts: shownAccounts.length,
         totalNotesThisWeek: shownAccounts.reduce((s, a) => s + a.weekPublished, 0),
@@ -107,16 +107,13 @@ export default function DashboardPage() {
         <div className="flex items-end justify-between gap-4">
           <h1 className="editorial-heading text-[36px] leading-tight">矩阵总览</h1>
           <div className="flex items-center gap-3 shrink-0">
-            <Dropdown
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              className="w-44"
-              options={[
-                { value: "", label: "全部账号" },
-                ...accounts.map((a) => ({ value: String(a.id), label: a.accountName })),
-              ]}
+            <AccountFilter
+              accounts={accounts}
+              selected={selectedAccounts}
+              onChange={setSelectedAccounts}
+              widthClass="w-72"
             />
-            <span className="mono-data text-muted hidden md:inline">
+            <span className="mono-data text-muted hidden lg:inline">
               数据快照 · {new Date().toLocaleDateString("zh-CN")}
             </span>
           </div>
