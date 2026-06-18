@@ -295,7 +295,7 @@ export default function TopicDetailPage() {
                     </a>
                   )}
                   {/* Feature 3: Clearly label as actual publish time */}
-                  <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN")}</span>
+                  <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN", { timeZone: "UTC" })}</span>
                 </div>
               </div>
               {(isLeader || topic.creatorId === user?.id) && (notesQuery.data?.length ?? 0) > 1 && (

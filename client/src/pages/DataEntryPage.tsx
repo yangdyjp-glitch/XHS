@@ -130,7 +130,7 @@ export default function DataEntryPage() {
                 >
                   <div className="text-sm font-medium text-ink line-clamp-2">{n.finalTitle}</div>
                   <div className="mono-data text-muted mt-1">
-                    {n.accountName} · {new Date(n.publishedAt).toLocaleDateString("zh-CN")}
+                    {n.accountName} · {new Date(n.publishedAt).toLocaleDateString("zh-CN", { timeZone: "UTC" })}
                   </div>
                   <div className="flex gap-1 mt-1.5">
                     {SNAPSHOT_DAYS.map((d) => (

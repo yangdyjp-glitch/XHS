@@ -57,7 +57,7 @@ export const metricRouter = router({
         recordedBy: ctx.user.id,
       };
 
-      // 仅用于「已保存/已更新」文案提示（非关键，可容忍并发下的轻微偏差）
+      // 先查后写：不依赖数据库唯一约束（避免「ON CONFLICT 无匹配约束」导致保存直接失败）。
       const existing = await db
         .select({ id: metricSnapshots.id })
         .from(metricSnapshots)
@@ -69,27 +69,19 @@ export const metricRouter = router({
         )
         .limit(1);
 
-      // 原子 upsert：依赖唯一约束 uq_note_snapshot(note_id, days_since_publish)。
-      // 取代「先查后插」，避免并发保存时撞唯一约束报错、或两次写入互相覆盖。
+      if (existing.length > 0) {
+        await db
+          .update(metricSnapshots)
+          .set(data)
+          .where(eq(metricSnapshots.id, existing[0].id));
+        return { id: existing[0].id, updated: true };
+      }
+
       const [result] = await db
         .insert(metricSnapshots)
         .values(data)
-        .onConflictDoUpdate({
-          target: [metricSnapshots.noteId, metricSnapshots.daysSincePublish],
-          set: {
-            impression: data.impression,
-            view: data.view,
-            likeCount: data.likeCount,
-            collect: data.collect,
-            commentCount: data.commentCount,
-            shareCount: data.shareCount,
-            notes: data.notes,
-            snapshotDate: data.snapshotDate,
-            recordedBy: data.recordedBy,
-          },
-        })
         .returning({ id: metricSnapshots.id });
 
-      return { id: result.id, updated: existing.length > 0 };
+      return { id: result.id, updated: false };
     }),
 });
