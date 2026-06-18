@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
@@ -70,6 +70,7 @@ export const noteRouter = router({
     }
 
     conditions.push(eq(notes.status, "live"));
+    conditions.push(isNull(topics.deletedAt)); // 排除选题已被删进回收箱的孤儿笔记
 
     const noteList = await db
       .select({
@@ -198,7 +199,7 @@ export const noteRouter = router({
   listWithMetrics: leaderProcedure
     .input(z.object({ accountId: z.number().optional(), accountIds: z.array(z.number()).optional() }).optional())
     .query(async ({ input }) => {
-      const conditions = [eq(notes.status, "live")];
+      const conditions = [eq(notes.status, "live"), isNull(topics.deletedAt)];
       if (input?.accountIds && input.accountIds.length > 0) {
         conditions.push(inArray(notes.accountId, input.accountIds));
       } else if (input?.accountId) {
@@ -217,6 +218,7 @@ export const noteRouter = router({
         })
         .from(notes)
         .leftJoin(accounts, eq(notes.accountId, accounts.id))
+        .leftJoin(topics, eq(notes.topicId, topics.id))
         .where(and(...conditions))
         .orderBy(desc(notes.publishedAt));
 

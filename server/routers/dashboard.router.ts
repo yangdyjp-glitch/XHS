@@ -27,7 +27,7 @@ function computeScore(m: { impression: number; view: number; likeCount: number; 
 }
 
 async function fetchAllNotesWithScores(since?: Date, accountIds?: number[]): Promise<NoteWithScore[]> {
-  const conditions = [];
+  const conditions = [isNull(topics.deletedAt)]; // 排除已删进回收箱选题的孤儿笔记
   if (since) conditions.push(gte(notes.publishedAt, since));
   if (accountIds && accountIds.length > 0) conditions.push(inArray(notes.accountId, accountIds));
 
