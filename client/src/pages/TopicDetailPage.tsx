@@ -4,6 +4,7 @@ import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { TOPIC_STATUS } from "@shared/enums.js";
 import PublishDialog from "../components/topic/PublishDialog.js";
+import NoteLink from "../components/ui/NoteLink.js";
 
 const PLACEHOLDER_COVER = "/cover-placeholder.png";
 
@@ -289,11 +290,9 @@ export default function TopicDetailPage() {
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-ink">{note.finalTitle}</div>
                 <div className="flex items-center gap-3 mt-1 mono-data text-muted">
-                  {note.xhsNoteUrl && (
-                    <a href={note.xhsNoteUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                      查看笔记
-                    </a>
-                  )}
+                  <NoteLink raw={note.xhsNoteUrl} className="text-accent hover:underline">
+                    查看笔记
+                  </NoteLink>
                   {/* Feature 3: Clearly label as actual publish time */}
                   <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN", { timeZone: "UTC" })}</span>
                 </div>

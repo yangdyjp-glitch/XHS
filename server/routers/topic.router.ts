@@ -5,6 +5,7 @@ import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { topics, accounts, users, notes, metricSnapshots, comments } from "../../drizzle/schema.js";
 import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
+import { extractNoteUrl } from "../../shared/url.js";
 import { suggestTitle as aiSuggestTitle } from "../services/ai.service.js";
 
 export const topicRouter = router({
@@ -380,6 +381,12 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "只能发布自己的选题" });
       }
 
+      // 从「粘贴的链接/分享口令」中提取可点击的绝对链接，避免整段文案被当成相对路径而跳首页
+      const cleanUrl = extractNoteUrl(input.xhsNoteUrl);
+      if (!cleanUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
+      }
+
       // 笔记发布时间取「计划发布时间」，而不是系统录入此刻（否则数据里显示成创建时间）
       const publishDate = topic.plannedPublishDate ? new Date(topic.plannedPublishDate) : new Date();
 
@@ -387,7 +394,7 @@ export const topicRouter = router({
       if (existing.length > 0) {
         // Note already exists — update with publish info (cover image, URL)
         await db.update(notes).set({
-          xhsNoteUrl: input.xhsNoteUrl,
+          xhsNoteUrl: cleanUrl,
           coverImage: input.coverImage || null,
           publishedAt: publishDate,
         }).where(eq(notes.topicId, topic.id));
@@ -396,7 +403,7 @@ export const topicRouter = router({
           topicId: topic.id,
           accountId: topic.accountId,
           finalTitle: topic.title,
-          xhsNoteUrl: input.xhsNoteUrl,
+          xhsNoteUrl: cleanUrl,
           coverImage: input.coverImage || null,
           publishedAt: publishDate,
         });
@@ -430,6 +437,12 @@ export const topicRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "没有权限操作" });
       }
 
+      // 同 publish：清洗成可点击的绝对链接
+      const cleanUrl = extractNoteUrl(input.xhsNoteUrl);
+      if (!cleanUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
+      }
+
       // Update topic title if provided
       const effectiveTitle = input.title?.trim() || topic.title;
       if (input.title && input.title.trim() !== topic.title) {
@@ -444,7 +457,7 @@ export const topicRouter = router({
         // Overwrite existing note; only update coverImage if a new one was provided
         const updateData: Record<string, any> = {
           finalTitle: effectiveTitle,
-          xhsNoteUrl: input.xhsNoteUrl,
+          xhsNoteUrl: cleanUrl,
           publishedAt: publishDate,
         };
         if (input.coverImage !== undefined) {
@@ -457,7 +470,7 @@ export const topicRouter = router({
           topicId: topic.id,
           accountId: topic.accountId,
           finalTitle: effectiveTitle,
-          xhsNoteUrl: input.xhsNoteUrl,
+          xhsNoteUrl: cleanUrl,
           coverImage: input.coverImage || null,
           publishedAt: publishDate,
         });

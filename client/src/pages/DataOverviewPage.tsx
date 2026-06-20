@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { SNAPSHOT_DAYS } from "@shared/enums.js";
+import NoteLink from "../components/ui/NoteLink.js";
 
 // 可排序的列：发布时长、账号，以及当前所选天数(T+N)下的各项指标
 type SortKey =
@@ -315,17 +316,13 @@ export default function DataOverviewPage() {
                           {hasMultiple && <span className="text-muted text-[9px] ml-1">{isExpanded ? "▲" : "▼"}</span>}
                         </td>
                         <td className="px-2 py-2.5 text-center pr-3">
-                          {note.xhsNoteUrl && (
-                            <a
-                              href={note.xhsNoteUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
-                            >
-                              查看
-                            </a>
-                          )}
+                          <NoteLink
+                            raw={note.xhsNoteUrl}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
+                          >
+                            查看
+                          </NoteLink>
                         </td>
                       </>
                     ) : (
@@ -334,17 +331,13 @@ export default function DataOverviewPage() {
                           暂无{snapshotDay}天数据
                         </td>
                         <td className="px-2 py-2.5 text-center pr-3">
-                          {note.xhsNoteUrl && (
-                            <a
-                              href={note.xhsNoteUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
-                            >
-                              查看
-                            </a>
-                          )}
+                          <NoteLink
+                            raw={note.xhsNoteUrl}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-block text-[10px] font-mono bg-ink text-card px-2 py-0.5 rounded-full hover:bg-ink-soft transition-colors leading-tight"
+                          >
+                            查看
+                          </NoteLink>
                         </td>
                       </>
                     )}

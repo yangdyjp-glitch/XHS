@@ -3,6 +3,7 @@ import { trpc } from "../lib/trpc.js";
 import { ACCOUNT_LAYER, TOPIC_STATUS } from "@shared/enums.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import AccountFilter from "../components/ui/AccountFilter.js";
+import NoteLink from "../components/ui/NoteLink.js";
 
 const HEALTH_DOT: Record<string, string> = {
   green: "bg-[#166534]",
@@ -42,11 +43,9 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
         <span><span className="text-[#7C3AED]">{n.commentCount}</span> <span className="text-muted">评</span></span>
         <span><span className="text-[#0891B2]">{(n.shareCount ?? 0)}</span> <span className="text-muted">转</span></span>
       </div>
-      {n.xhsNoteUrl && (
-        <a href={n.xhsNoteUrl} target="_blank" rel="noopener noreferrer"
-          className="shrink-0 text-[11px] font-mono bg-ink text-card px-2.5 py-1 rounded-full hover:bg-ink-soft transition-colors"
-        >查看</a>
-      )}
+      <NoteLink raw={n.xhsNoteUrl}
+        className="shrink-0 text-[11px] font-mono bg-ink text-card px-2.5 py-1 rounded-full hover:bg-ink-soft transition-colors"
+      >查看</NoteLink>
     </div>
   );
 }

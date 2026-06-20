@@ -5,6 +5,7 @@ import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { notes, topics, accounts, metricSnapshots } from "../../drizzle/schema.js";
 import { SNAPSHOT_DAYS } from "../../shared/enums.js";
+import { extractNoteUrl } from "../../shared/url.js";
 
 export const noteRouter = router({
   listByTopic: protectedProcedure
@@ -123,7 +124,8 @@ export const noteRouter = router({
       z.object({
         topicId: z.number(),
         finalTitle: z.string().min(1),
-        xhsNoteUrl: z.string().url(),
+        // 允许粘贴整段分享口令；在处理函数里提取出真正的链接
+        xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
         publishedAt: z.string(),
       })
     )
@@ -135,13 +137,18 @@ export const noteRouter = router({
         .limit(1);
       if (!topic) throw new Error("选题不存在");
 
+      const cleanUrl = extractNoteUrl(input.xhsNoteUrl);
+      if (!cleanUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
+      }
+
       const [note] = await db
         .insert(notes)
         .values({
           topicId: input.topicId,
           accountId: topic.accountId,
           finalTitle: input.finalTitle,
-          xhsNoteUrl: input.xhsNoteUrl,
+          xhsNoteUrl: cleanUrl,
           publishedAt: new Date(input.publishedAt),
         })
         .returning();
@@ -154,12 +161,19 @@ export const noteRouter = router({
       z.object({
         id: z.number(),
         finalTitle: z.string().min(1).optional(),
-        xhsNoteUrl: z.string().url().optional(),
+        xhsNoteUrl: z.string().min(1).optional(),
         status: z.enum(["live", "hidden", "deleted"]).optional(),
       })
     )
     .mutation(async ({ input }) => {
       const { id, ...updates } = input;
+      if (updates.xhsNoteUrl !== undefined) {
+        const cleanUrl = extractNoteUrl(updates.xhsNoteUrl);
+        if (!cleanUrl) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
+        }
+        updates.xhsNoteUrl = cleanUrl;
+      }
       await db.update(notes).set(updates).where(eq(notes.id, id));
       return { success: true };
     }),

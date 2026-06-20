@@ -164,6 +164,19 @@ async function runAutoMigrations() {
         AND n.published_at <> t.planned_publish_date::timestamp
     `);
     console.log(`[Compass] Backfilled published_at (创建时间→计划发布日期) for ${fix?.count ?? 0} notes.`);
+
+    // 一次性回填：历史上「复制链接」把整段小红书分享口令(真实链接夹在文案中间)存进了
+    // xhs_note_url，被当成相对路径后点击会跳到首页(选题看板)。把含 http(s) 但不是以
+    // http(s) 开头的行，提取出第一个链接(到空白为止)。幂等：已是 http 开头者被守卫排除；
+    // 纯标签/无链接的行不含 http，跳过(由前端 NoteLink 显示「链接无效」)。尾随中文标点
+    // 由前端 extractNoteUrl 在渲染时再清理一次。
+    const urlFix: any = await db.execute(sql`
+      UPDATE notes
+      SET xhs_note_url = substring(xhs_note_url from 'https?://[^[:space:]]+')
+      WHERE xhs_note_url ~ 'https?://'
+        AND xhs_note_url !~ '^https?://'
+    `);
+    console.log(`[Compass] Normalized embedded xhs_note_url (分享口令→纯链接) for ${urlFix?.count ?? 0} notes.`);
   } catch (e: any) {
     console.warn("[Compass] Auto-migration warning:", e.message);
   }
