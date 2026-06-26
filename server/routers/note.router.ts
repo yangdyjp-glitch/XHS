@@ -124,7 +124,6 @@ export const noteRouter = router({
       z.object({
         topicId: z.number(),
         finalTitle: z.string().min(1),
-        // 允许粘贴整段分享口令；在处理函数里提取出真正的链接
         xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
         publishedAt: z.string(),
       })

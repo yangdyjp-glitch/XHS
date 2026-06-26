@@ -95,6 +95,27 @@ app.post("/api/upload", async (req, res) => {
   }
 });
 
+// REST login endpoint for external scripts (bypasses tRPC serialization)
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { verifyPassword, createToken, setTokenCookie } = await import("./_core/auth.js");
+    const { db } = await import("./db.js");
+    const { users } = await import("../drizzle/schema.js");
+    const { eq } = await import("drizzle-orm");
+    const { email, password } = req.body;
+    if (!email || !password) { res.status(400).json({ error: "Missing email or password" }); return; }
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user || !user.isActive) { res.status(401).json({ error: "Invalid credentials" }); return; }
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) { res.status(401).json({ error: "Invalid credentials" }); return; }
+    const token = await createToken({ userId: user.id, email: user.email, role: user.role });
+    setTokenCookie(res, token);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/api/health", async (_req, res) => {
   try {
     const { db } = await import("./db.js");
@@ -104,6 +125,74 @@ app.get("/api/health", async (_req, res) => {
   } catch (e: any) {
     res.json({ status: "ok", db: "error", error: e.message, cause: e.cause?.message, timestamp: new Date().toISOString() });
   }
+});
+
+// REST endpoints for external fetch script
+app.get("/api/metric/pending", async (req, res) => {
+  try {
+    const { getTokenFromRequest, verifyToken } = await import("./_core/auth.js");
+    const { db } = await import("./db.js");
+    const { notes, accounts, metricSnapshots } = await import("../drizzle/schema.js");
+    const { SNAPSHOT_DAYS } = await import("../shared/enums.js");
+    const { eq, and, inArray } = await import("drizzle-orm");
+    const token = getTokenFromRequest(req);
+    if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = await verifyToken(token);
+    if (!payload) { res.status(401).json({ error: "Invalid token" }); return; }
+    const { users } = await import("../drizzle/schema.js");
+    const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+    if (!user) { res.status(401).json({ error: "User not found" }); return; }
+
+    const conditions = [];
+    if (user.role === "teacher" || user.role === "editor") {
+      const ownAccounts = await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.ownerId, user.id));
+      const ids = ownAccounts.map((a: any) => a.id);
+      if (ids.length > 0) conditions.push(inArray(notes.accountId, ids));
+      else { res.json([]); return; }
+    }
+    conditions.push(eq(notes.status, "live"));
+    const allNotes = await db.select({ id: notes.id, xhsNoteUrl: notes.xhsNoteUrl, publishedAt: notes.publishedAt, finalTitle: notes.finalTitle, accountName: accounts.accountName })
+      .from(notes).leftJoin(accounts, eq(notes.accountId, accounts.id)).where(and(...conditions));
+    const allSnaps = await db.select({ noteId: metricSnapshots.noteId, daysSincePublish: metricSnapshots.daysSincePublish }).from(metricSnapshots);
+    const snapSet = new Set(allSnaps.map((s: any) => `${s.noteId}_${s.daysSincePublish}`));
+    const now = new Date();
+    const pending = [];
+    for (const note of allNotes) {
+      const daysSince = Math.floor((now.getTime() - new Date(note.publishedAt).getTime()) / 86400000);
+      const missing = (SNAPSHOT_DAYS as readonly number[]).filter((d) => daysSince >= d && !snapSet.has(`${note.id}_${d}`));
+      if (missing.length > 0) pending.push({ noteId: note.id, xhsNoteUrl: note.xhsNoteUrl, publishedAt: new Date(note.publishedAt).toISOString(), finalTitle: note.finalTitle, accountName: note.accountName, missingDays: missing });
+    }
+    res.json(pending);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/metric/upsert", async (req, res) => {
+  try {
+    const { getTokenFromRequest, verifyToken } = await import("./_core/auth.js");
+    const { db } = await import("./db.js");
+    const { metricSnapshots, notes } = await import("../drizzle/schema.js");
+    const { SNAPSHOT_DAYS } = await import("../shared/enums.js");
+    const { eq, and } = await import("drizzle-orm");
+    const token = getTokenFromRequest(req);
+    if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const payload = await verifyToken(token);
+    if (!payload) { res.status(401).json({ error: "Invalid token" }); return; }
+    const input = req.body;
+    if (!(SNAPSHOT_DAYS as readonly number[]).includes(input.daysSincePublish)) { res.status(400).json({ error: "Invalid daysSincePublish" }); return; }
+    const [note] = await db.select({ publishedAt: notes.publishedAt }).from(notes).where(eq(notes.id, input.noteId)).limit(1);
+    if (!note) { res.status(404).json({ error: "Note not found" }); return; }
+    const snapshotDate = new Date(note.publishedAt);
+    snapshotDate.setDate(snapshotDate.getDate() + input.daysSincePublish);
+    const data = { noteId: input.noteId, daysSincePublish: input.daysSincePublish, impression: input.impression, view: input.view, likeCount: input.likeCount, collect: input.collect, commentCount: input.commentCount, shareCount: input.shareCount, notes: input.notes ?? null, snapshotDate: snapshotDate.toISOString().split("T")[0], recordedBy: payload.userId };
+    const existing = await db.select({ id: metricSnapshots.id }).from(metricSnapshots).where(and(eq(metricSnapshots.noteId, input.noteId), eq(metricSnapshots.daysSincePublish, input.daysSincePublish))).limit(1);
+    if (existing.length > 0) {
+      await db.update(metricSnapshots).set(data).where(eq(metricSnapshots.id, existing[0].id));
+      res.json({ id: existing[0].id, updated: true });
+    } else {
+      const [result] = await db.insert(metricSnapshots).values(data).returning({ id: metricSnapshots.id });
+      res.json({ id: result.id, updated: false });
+    }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 app.use(

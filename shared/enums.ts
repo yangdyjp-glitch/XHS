@@ -79,3 +79,10 @@ export const PRESET_TOPIC_TYPES = [
   "热点借势",
   "生活内容",
 ] as const;
+
+export function isValidXhsNoteUrl(url: string): boolean {
+  return /xiaohongshu\.com\/(explore|discovery\/item)\/[a-f0-9]+/.test(url) ||
+    /[?&]noteId=[a-f0-9]+/.test(url);
+}
+
+export const XHS_URL_HINT = "请粘贴完整的小红书笔记链接（如 https://www.xiaohongshu.com/explore/xxx），不支持短链接（xhslink.com）";

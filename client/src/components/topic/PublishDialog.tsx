@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { trpc } from "../../lib/trpc.js";
+import { isValidXhsNoteUrl, XHS_URL_HINT } from "@shared/enums.js";
 
 interface Props {
   topicId: number;
@@ -82,6 +83,10 @@ export default function PublishDialog({ topicId, topicTitle, mode = "publish", o
 
     if (!noteUrl.trim()) {
       setError("请填写笔记链接");
+      return;
+    }
+    if (!isValidXhsNoteUrl(noteUrl.trim())) {
+      setError(XHS_URL_HINT);
       return;
     }
 
@@ -184,8 +189,9 @@ export default function PublishDialog({ topicId, topicTitle, mode = "publish", o
               value={noteUrl}
               onChange={(e) => setNoteUrl(e.target.value)}
               className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
-              placeholder="粘贴小红书笔记链接"
+              placeholder="https://www.xiaohongshu.com/explore/..."
             />
+            <p className="text-xs text-muted mt-1">请粘贴完整链接，不支持 xhslink.com 短链接</p>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

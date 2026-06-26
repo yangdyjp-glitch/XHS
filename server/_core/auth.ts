@@ -59,5 +59,9 @@ export function clearTokenCookie(res: Response) {
 }
 
 export function getTokenFromRequest(req: Request): string | null {
-  return req.cookies?.[COOKIE_NAME] || null;
+  const cookie = req.cookies?.[COOKIE_NAME];
+  if (cookie) return cookie;
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ")) return auth.slice(7);
+  return null;
 }

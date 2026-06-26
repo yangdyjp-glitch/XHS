@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
-import { TOPIC_STATUS } from "@shared/enums.js";
+import { TOPIC_STATUS, isValidXhsNoteUrl, XHS_URL_HINT } from "@shared/enums.js";
 import PublishDialog from "../components/topic/PublishDialog.js";
 import NoteLink from "../components/ui/NoteLink.js";
 
@@ -53,8 +53,11 @@ export default function TopicDetailPage() {
   });
   const createCommentMutation = trpc.comment.create.useMutation({ onSuccess: () => commentsQuery.refetch() });
 
+  const updateNoteMutation = trpc.note.update.useMutation({ onSuccess: () => notesQuery.refetch() });
+
   const [commentText, setCommentText] = useState("");
   const [noteForm, setNoteForm] = useState({ finalTitle: "", xhsNoteUrl: "", publishedAt: "" });
+  const [noteFormError, setNoteFormError] = useState("");
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   // Feature 5: Title editing
@@ -63,6 +66,9 @@ export default function TopicDetailPage() {
   // 修改计划发布时间
   const [editingDate, setEditingDate] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
+  const [editingUrlNoteId, setEditingUrlNoteId] = useState<number | null>(null);
+  const [editingUrlValue, setEditingUrlValue] = useState("");
+  const [editingUrlError, setEditingUrlError] = useState("");
 
   const topic = topicQuery.data;
 
@@ -79,9 +85,25 @@ export default function TopicDetailPage() {
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
+    setNoteFormError("");
     if (!noteForm.finalTitle || !noteForm.xhsNoteUrl || !noteForm.publishedAt || createNoteMutation.isPending) return;
+    if (!isValidXhsNoteUrl(noteForm.xhsNoteUrl)) {
+      setNoteFormError(XHS_URL_HINT);
+      return;
+    }
     createNoteMutation.mutate({ topicId, ...noteForm }, {
-      onSuccess: () => { setNoteForm({ finalTitle: "", xhsNoteUrl: "", publishedAt: "" }); setShowNoteForm(false); },
+      onSuccess: () => { setNoteForm({ finalTitle: "", xhsNoteUrl: "", publishedAt: "" }); setNoteFormError(""); setShowNoteForm(false); },
+      onError: (err) => setNoteFormError(err.message),
+    });
+  };
+
+  const handleFixUrl = (noteId: number) => {
+    setEditingUrlError("");
+    if (!editingUrlValue.trim()) { setEditingUrlError("请填写链接"); return; }
+    if (!isValidXhsNoteUrl(editingUrlValue.trim())) { setEditingUrlError(XHS_URL_HINT); return; }
+    updateNoteMutation.mutate({ id: noteId, xhsNoteUrl: editingUrlValue.trim() }, {
+      onSuccess: () => { setEditingUrlNoteId(null); setEditingUrlValue(""); setEditingUrlError(""); },
+      onError: (err) => setEditingUrlError(err.message),
     });
   };
 
@@ -273,8 +295,12 @@ export default function TopicDetailPage() {
 
         {showNoteForm && (
           <form onSubmit={handleAddNote} className="space-y-2 bg-paper p-3 border border-hairline">
+            {noteFormError && <div className="text-sm text-[#991B1B] bg-[#FEE2E2] px-3 py-2">{noteFormError}</div>}
             <input value={noteForm.finalTitle} onChange={(e) => setNoteForm({ ...noteForm, finalTitle: e.target.value })} placeholder="笔记标题" className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
-            <input value={noteForm.xhsNoteUrl} onChange={(e) => setNoteForm({ ...noteForm, xhsNoteUrl: e.target.value })} placeholder="小红书笔记链接" className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
+            <div>
+              <input value={noteForm.xhsNoteUrl} onChange={(e) => setNoteForm({ ...noteForm, xhsNoteUrl: e.target.value })} placeholder="https://www.xiaohongshu.com/explore/..." className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
+              <p className="text-xs text-muted mt-0.5">请粘贴完整链接，不支持 xhslink.com 短链接</p>
+            </div>
             <input type="datetime-local" value={noteForm.publishedAt} onChange={(e) => setNoteForm({ ...noteForm, publishedAt: e.target.value })} className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
             <button type="submit" disabled={createNoteMutation.isPending} className="bg-ink text-card px-4 py-1.5 text-sm rounded-full hover:bg-ink-soft disabled:opacity-50">
               添加
@@ -296,6 +322,36 @@ export default function TopicDetailPage() {
                   {/* Feature 3: Clearly label as actual publish time */}
                   <span>发布于 {new Date(note.publishedAt).toLocaleDateString("zh-CN", { timeZone: "UTC" })}</span>
                 </div>
+                {note.xhsNoteUrl && !isValidXhsNoteUrl(note.xhsNoteUrl) && (
+                  <div className="mt-2">
+                    {editingUrlNoteId === note.id ? (
+                      <div className="space-y-1.5">
+                        {editingUrlError && <div className="text-xs text-[#991B1B]">{editingUrlError}</div>}
+                        <div className="flex gap-2">
+                          <input
+                            value={editingUrlValue}
+                            onChange={(e) => setEditingUrlValue(e.target.value)}
+                            placeholder="https://www.xiaohongshu.com/explore/..."
+                            className="flex-1 border border-hairline bg-card px-2 py-1 text-xs focus:outline-none focus:border-accent"
+                          />
+                          <button onClick={() => handleFixUrl(note.id)} disabled={updateNoteMutation.isPending} className="text-xs bg-[#166534] text-white px-3 py-1 rounded-full hover:bg-[#15803D] disabled:opacity-50">
+                            保存
+                          </button>
+                          <button onClick={() => { setEditingUrlNoteId(null); setEditingUrlError(""); }} className="text-xs text-muted hover:text-ink">
+                            取消
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 bg-[#FEF3C7] px-2.5 py-1.5 text-xs text-[#92400E]">
+                        <span>&#9888; 链接格式不支持自动抓取数据，请更新为完整链接</span>
+                        <button onClick={() => { setEditingUrlNoteId(note.id); setEditingUrlValue(""); setEditingUrlError(""); }} className="underline hover:text-[#78350F] font-medium">
+                          修改链接
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {(isLeader || topic.creatorId === user?.id) && (notesQuery.data?.length ?? 0) > 1 && (
                 <button

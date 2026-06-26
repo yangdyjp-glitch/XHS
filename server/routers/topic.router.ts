@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { topics, accounts, users, notes, metricSnapshots, comments } from "../../drizzle/schema.js";
-import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
+import { PRESET_TOPIC_TYPES, isValidXhsNoteUrl, XHS_URL_HINT } from "../../shared/enums.js";
 import { extractNoteUrl } from "../../shared/url.js";
 import { suggestTitle as aiSuggestTitle } from "../services/ai.service.js";
 
@@ -364,7 +364,7 @@ export const topicRouter = router({
     .input(
       z.object({
         topicId: z.number(),
-        xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
+        xhsNoteUrl: z.string().min(1, "请填写笔记链接").refine(isValidXhsNoteUrl, XHS_URL_HINT),
         coverImage: z.string().optional(),
       })
     )
