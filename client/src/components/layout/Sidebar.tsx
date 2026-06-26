@@ -11,6 +11,7 @@ const NAV_COMMON = [
 
 const NAV_TEACHER = [
   { path: "/data-entry", label: "数据录入", sub: "DATA ENTRY" },
+  { path: "/auto-fetch", label: "数据抓取", sub: "AUTO FETCH" },
 ];
 
 const NAV_LEADER = [

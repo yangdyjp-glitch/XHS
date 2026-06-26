@@ -23,6 +23,7 @@ const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 const TypesPage = lazy(() => import("./pages/TypesPage.js"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage.js"));
 const TrashPage = lazy(() => import("./pages/TrashPage.js"));
+const AutoFetchPage = lazy(() => import("./pages/AutoFetchPage.js"));
 
 // Prefetch page chunks after initial render so they're cached for instant navigation
 function usePrefetchRoutes() {
@@ -34,6 +35,7 @@ function usePrefetchRoutes() {
       import("./pages/TopicDetailPage.js");
       import("./pages/TrashPage.js");
       import("./pages/DataEntryPage.js");
+      import("./pages/AutoFetchPage.js");
       import("./pages/DataOverviewPage.js");
       import("./pages/ReviewPage.js");
       import("./pages/RecommendationPage.js");
@@ -87,6 +89,7 @@ function AppRoutes() {
             <Route path="/trash" component={TrashPage} />
             <Route path="/topic/:id" component={TopicDetailPage} />
             <Route path="/data-entry" component={DataEntryPage} />
+            <Route path="/auto-fetch" component={AutoFetchPage} />
             <Route path="/data-overview" component={DataOverviewPage} />
             <Route path="/reviews" component={ReviewPage} />
             <Route path="/recommendations" component={RecommendationPage} />
