@@ -92,8 +92,14 @@ export default function ReviewPage() {
     },
     onSettled: () => utils.review.list.invalidate(),
   });
+  const [analyzingReviewId, setAnalyzingReviewId] = useState<number | null>(null);
   const analyzeMutation = trpc.review.aiAnalyze.useMutation({
-    onSuccess: () => detailQuery.refetch(),
+    onSuccess: (_data, variables) => {
+      utils.review.getById.invalidate({ id: variables.reviewId });
+    },
+    onSettled: () => {
+      setAnalyzingReviewId(null);
+    },
   });
 
   const review = detailQuery.data;
@@ -264,11 +270,14 @@ export default function ReviewPage() {
                 <div className="flex items-center justify-between mb-4">
                   <p className="eyebrow">AI 分析</p>
                   <button
-                    onClick={() => analyzeMutation.mutate({ reviewId: review.id })}
-                    disabled={analyzeMutation.isPending}
+                    onClick={() => {
+                      setAnalyzingReviewId(review.id);
+                      analyzeMutation.mutate({ reviewId: review.id });
+                    }}
+                    disabled={analyzingReviewId === review.id}
                     className="bg-accent text-white px-4 py-1.5 text-sm rounded-full hover:bg-accent-deep disabled:opacity-50"
                   >
-                    {analyzeMutation.isPending ? "分析中..." : latestAnalysis ? "重新分析" : "AI 分析"}
+                    {analyzingReviewId === review.id ? "分析中..." : latestAnalysis ? "重新分析" : "AI 分析"}
                   </button>
                 </div>
 
