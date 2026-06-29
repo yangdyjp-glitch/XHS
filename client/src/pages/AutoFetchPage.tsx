@@ -116,7 +116,7 @@ export default function AutoFetchPage() {
       const data = await res.json();
       if (data.ok && data.data) {
         const raw = data.data;
-        const nickname = raw.nickname || raw.name || raw.userName || (Array.isArray(raw) ? raw.find((r: any) => r.metric === "昵称")?.value : null);
+        const nickname = raw.nickname || raw.username || raw.name || raw.userName || (Array.isArray(raw) ? raw.find((r: any) => r.metric === "昵称")?.value : null);
         const redId = raw.redId || raw.red_id || (Array.isArray(raw) ? raw.find((r: any) => r.metric === "小红书号")?.value : null);
         setWhoami({ ok: true, nickname, redId, raw });
       } else {
