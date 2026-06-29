@@ -4,14 +4,24 @@ echo   XHS Auto-Fetch Agent - Setup
 echo ========================================
 echo.
 
-:: Check Node.js
+:: Check Node.js (also check common install paths if PATH not updated yet)
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [FAIL] Node.js not found. Please install from https://nodejs.org/
-    pause
-    exit /b 1
+    if exist "%ProgramFiles%\nodejs\node.exe" (
+        set "PATH=%PATH%;%ProgramFiles%\nodejs"
+        echo [OK] Node.js found at %ProgramFiles%\nodejs
+    ) else if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" (
+        set "PATH=%PATH%;%LOCALAPPDATA%\Programs\nodejs"
+        echo [OK] Node.js found at %LOCALAPPDATA%\Programs\nodejs
+    ) else (
+        echo [FAIL] Node.js not found. Please install from https://nodejs.org/
+        echo        If just installed, try restarting your computer.
+        pause
+        exit /b 1
+    )
+) else (
+    echo [OK] Node.js found
 )
-echo [OK] Node.js found
 
 :: Install OpenCLI (non-fatal)
 echo [INSTALL] Installing OpenCLI...
