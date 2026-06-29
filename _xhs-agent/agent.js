@@ -21,6 +21,7 @@ function corsHeaders(origin) {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Private-Network": "true",
     "Content-Type": "application/json",
   };
 }
@@ -37,15 +38,13 @@ function readBody(req) {
   });
 }
 
-function fetchNote(noteId, profile) {
-  const profileFlag = profile ? ` --profile "${profile}"` : "";
-  const cmd = `"${OPENCLI}" xiaohongshu creator-note-detail ${noteId} -f json${profileFlag}`;
-  const output = execSync(cmd, {
+function runOpencli(args) {
+  const cmd = `"${OPENCLI}" ${args}`;
+  return execSync(cmd, {
     encoding: "utf-8",
     timeout: 60000,
     stdio: ["pipe", "pipe", "pipe"],
   });
-  return JSON.parse(output);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -59,7 +58,20 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ status: "ok", version: "1.0" }));
+    res.end(JSON.stringify({ status: "ok", version: "1.1" }));
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/whoami") {
+    try {
+      const raw = runOpencli("xiaohongshu whoami -f json");
+      const data = JSON.parse(raw);
+      res.writeHead(200, headers);
+      res.end(JSON.stringify({ ok: true, data }));
+    } catch (err) {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify({ ok: false, error: err.message }));
+    }
     return;
   }
 
@@ -71,7 +83,9 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: "noteId is required" }));
         return;
       }
-      const data = fetchNote(body.noteId, body.profile);
+      const profileFlag = body.profile ? ` --profile "${body.profile}"` : "";
+      const raw = runOpencli(`xiaohongshu creator-note-detail ${body.noteId} -f json${profileFlag}`);
+      const data = JSON.parse(raw);
       res.writeHead(200, headers);
       res.end(JSON.stringify({ ok: true, data }));
     } catch (err) {

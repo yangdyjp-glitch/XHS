@@ -21,6 +21,14 @@ interface NoteProgress {
   skippedDays: number[];
 }
 
+interface WhoamiInfo {
+  ok: boolean;
+  nickname?: string;
+  redId?: string;
+  raw?: any;
+  error?: string;
+}
+
 function extractNoteId(url: string | null): string | null {
   if (!url) return null;
   const exploreMatch = url.match(/\/(?:explore|discovery\/item)\/([a-f0-9]+)/);
@@ -75,6 +83,8 @@ function computeSnapshot(detail: any[], publishedAt: string, targetDay: number) 
 
 export default function AutoFetchPage() {
   const [agentStatus, setAgentStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [whoami, setWhoami] = useState<WhoamiInfo | null>(null);
+  const [whoamiLoading, setWhoamiLoading] = useState(false);
   const [pending, setPending] = useState<PendingNote[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [progress, setProgress] = useState<NoteProgress[]>([]);
@@ -84,14 +94,40 @@ export default function AutoFetchPage() {
 
   const checkAgent = useCallback(async () => {
     setAgentStatus("checking");
+    setWhoami(null);
     try {
       const res = await fetch(`${AGENT_URL}/health`, { signal: AbortSignal.timeout(3000) });
       const data = await res.json();
-      setAgentStatus(data.status === "ok" ? "online" : "offline");
+      if (data.status === "ok") {
+        setAgentStatus("online");
+        checkWhoami();
+      } else {
+        setAgentStatus("offline");
+      }
     } catch {
       setAgentStatus("offline");
     }
   }, []);
+
+  const checkWhoami = async () => {
+    setWhoamiLoading(true);
+    try {
+      const res = await fetch(`${AGENT_URL}/whoami`, { signal: AbortSignal.timeout(15000) });
+      const data = await res.json();
+      if (data.ok && data.data) {
+        const raw = data.data;
+        const nickname = raw.nickname || raw.name || raw.userName || (Array.isArray(raw) ? raw.find((r: any) => r.metric === "昵称")?.value : null);
+        const redId = raw.redId || raw.red_id || (Array.isArray(raw) ? raw.find((r: any) => r.metric === "小红书号")?.value : null);
+        setWhoami({ ok: true, nickname, redId, raw });
+      } else {
+        setWhoami({ ok: false, error: data.error || "未登录小红书" });
+      }
+    } catch {
+      setWhoami({ ok: false, error: "whoami 检测超时" });
+    } finally {
+      setWhoamiLoading(false);
+    }
+  };
 
   const loadPending = useCallback(async () => {
     setLoadingPending(true);
@@ -141,7 +177,6 @@ export default function AutoFetchPage() {
         continue;
       }
 
-      // Fetch from local agent
       item.status = "fetching";
       item.message = "正在从小红书抓取数据...";
       setProgress([...progressList]);
@@ -168,7 +203,6 @@ export default function AutoFetchPage() {
         continue;
       }
 
-      // Compute and save each missing snapshot
       item.status = "computing";
       item.message = "正在计算快照数据...";
       setProgress([...progressList]);
@@ -180,7 +214,7 @@ export default function AutoFetchPage() {
 
         if (allZero) {
           item.skippedDays.push(day);
-          item.message = `T+${day} 数据全为0，已跳过（可能非当前登录账号）`;
+          item.message = `T+${day} 数据全为0，已跳过（可能非当前登录账号的笔记）`;
           setProgress([...progressList]);
           continue;
         }
@@ -233,6 +267,8 @@ export default function AutoFetchPage() {
     savedSnapshots: progress.reduce((sum, p) => sum + p.savedDays.length, 0),
   };
 
+  const xhsReady = whoami?.ok === true;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
@@ -241,8 +277,9 @@ export default function AutoFetchPage() {
         <div className="h-[1.5px] bg-ink mt-4" />
       </div>
 
-      {/* Agent status */}
-      <div className="card-surface p-5">
+      {/* Agent + XHS status */}
+      <div className="card-surface p-5 space-y-4">
+        {/* Row 1: Agent status */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span
@@ -270,20 +307,65 @@ export default function AutoFetchPage() {
           )}
         </div>
 
+        {/* Row 2: XHS login status (only when agent is online) */}
+        {agentStatus === "online" && (
+          <div className="flex items-center gap-3">
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${
+                whoamiLoading
+                  ? "bg-[#F59E0B] animate-pulse"
+                  : xhsReady
+                  ? "bg-[#22C55E]"
+                  : "bg-[#EF4444]"
+              }`}
+            />
+            <span className="text-sm text-ink">
+              {whoamiLoading && "正在检测小红书登录状态..."}
+              {!whoamiLoading && xhsReady && (
+                <>
+                  小红书已登录：
+                  <span className="font-medium text-accent">
+                    {whoami.nickname || "未知昵称"}
+                  </span>
+                  {whoami.redId && (
+                    <span className="text-muted ml-1">({whoami.redId})</span>
+                  )}
+                </>
+              )}
+              {!whoamiLoading && !xhsReady && whoami && (
+                <span className="text-[#EF4444]">
+                  小红书未登录 —— 请先在 Chrome 打开创作者后台并登录
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Offline instructions */}
         {agentStatus === "offline" && (
-          <div className="mt-4 bg-[#FEF3C7] text-[#92400E] text-sm px-4 py-3 space-y-2">
-            <p className="font-medium">请先启动本地抓取代理：</p>
+          <div className="bg-[#FEF3C7] text-[#92400E] text-sm px-4 py-3 space-y-2">
+            <p className="font-medium">Please start the local agent first:</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
-              <li>确认电脑已安装 Node.js 和 OpenCLI</li>
-              <li>找到 <code className="bg-[#FDE68A] px-1 rounded">_xhs-agent</code> 文件夹，双击 <code className="bg-[#FDE68A] px-1 rounded">install.bat</code> 完成安装</li>
-              <li>安装后代理会自动随系统启动，也可手动双击 <code className="bg-[#FDE68A] px-1 rounded">start-agent.vbs</code></li>
+              <li>Make sure Node.js and OpenCLI are installed</li>
+              <li>Find the <code className="bg-[#FDE68A] px-1 rounded">_xhs-agent</code> folder, run <code className="bg-[#FDE68A] px-1 rounded">install.bat</code></li>
+              <li>The agent auto-starts with Windows. You can also run <code className="bg-[#FDE68A] px-1 rounded">start-agent.vbs</code> manually</li>
             </ol>
+          </div>
+        )}
+
+        {/* Not logged in warning */}
+        {agentStatus === "online" && !whoamiLoading && !xhsReady && whoami && (
+          <div className="bg-[#FEE2E2] text-[#991B1B] text-sm px-4 py-3 space-y-1">
+            <p className="font-medium">Chrome 未登录小红书创作者后台</p>
+            <p className="text-xs">
+              请在 Chrome 中打开 <a href="https://creator.xiaohongshu.com" target="_blank" rel="noopener noreferrer" className="underline">creator.xiaohongshu.com</a> 并登录你管理的账号，然后点「重新检测」。
+            </p>
           </div>
         )}
       </div>
 
-      {/* Pending notes */}
-      {agentStatus === "online" && (
+      {/* Pending notes (only when agent online + XHS logged in) */}
+      {agentStatus === "online" && xhsReady && (
         <div className="card-surface p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="eyebrow">待抓取笔记</p>
@@ -335,7 +417,6 @@ export default function AutoFetchPage() {
           {/* Progress */}
           {(fetching || done) && progress.length > 0 && (
             <div className="space-y-3">
-              {/* Summary bar */}
               {done && (
                 <div className="bg-paper-alt px-4 py-3 text-sm space-y-1">
                   <p className="font-medium text-ink">抓取完成</p>
@@ -345,7 +426,6 @@ export default function AutoFetchPage() {
                 </div>
               )}
 
-              {/* Progress list */}
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {progress.map((p, idx) => (
                   <div key={idx} className="flex items-start gap-3 text-sm border-b border-hairline pb-2 last:border-0">
