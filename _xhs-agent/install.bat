@@ -33,15 +33,16 @@ if %errorlevel% neq 0 (
     echo [OK] OpenCLI installed
 )
 
-:: Auto-start setup
+:: Auto-start setup (generate VBS with absolute path to agent.js)
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SCRIPT_DIR=%~dp0"
-copy "%SCRIPT_DIR%start-agent.vbs" "%STARTUP%\xhs-agent-autostart.vbs" >nul
+>"%STARTUP%\xhs-agent-autostart.vbs" echo Set WshShell = CreateObject("WScript.Shell")
+>>"%STARTUP%\xhs-agent-autostart.vbs" echo WshShell.Run "node ""%SCRIPT_DIR%agent.js""", 0, False
 echo [OK] Auto-start configured
 
-:: Start agent now
+:: Start agent now (run original VBS from install folder)
 echo [START] Launching agent...
-"%SystemRoot%\System32\wscript.exe" "%STARTUP%\xhs-agent-autostart.vbs"
+"%SystemRoot%\System32\wscript.exe" "%SCRIPT_DIR%start-agent.vbs"
 echo [OK] Agent running on port 19527
 
 echo.
