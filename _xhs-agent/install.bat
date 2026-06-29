@@ -41,7 +41,7 @@ echo [OK] Auto-start configured
 
 :: Start agent now
 echo [START] Launching agent...
-wscript "%STARTUP%\xhs-agent-autostart.vbs"
+"%SystemRoot%\System32\wscript.exe" "%STARTUP%\xhs-agent-autostart.vbs"
 echo [OK] Agent running on port 19527
 
 echo.
