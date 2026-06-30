@@ -347,6 +347,9 @@ export default function RecommendationPage() {
                     </div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="status-pill bg-[#DBEAFE] text-accent">{rec.topicType}</span>
+                      {rec.keywords?.map((k: string, keywordIndex: number) => (
+                        <span key={`${k}-${keywordIndex}`} className="status-pill bg-[#EDE9FE] text-[#6D28D9]">{k}</span>
+                      ))}
                     </div>
                     <p className="text-sm text-ink-soft">{rec.reason}</p>
                   </div>

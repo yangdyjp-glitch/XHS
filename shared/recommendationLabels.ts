@@ -49,6 +49,30 @@ const TYPE_ALIASES: Record<string, string> = {
   gpa: "考学攻略",
 };
 
+const KEYWORD_ALIASES: Record<string, string> = {
+  exam: "考试",
+  path: "升学路径",
+  application: "出愿",
+  result: "成绩",
+  score: "分数",
+  school: "择校",
+  major: "专业",
+  timing: "时间节点",
+  case: "案例",
+  strategy: "策略",
+  content: "内容",
+  language: "语言",
+  language_school: "语言学校",
+  jlpt: "JLPT",
+  eju: "EJU",
+  toefl: "托福",
+  ielts: "雅思",
+  toeic: "托业",
+  coe: "在留",
+  mext: "奖学金",
+  gpa: "均分",
+};
+
 function keyOf(label: string) {
   return label.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
@@ -119,6 +143,26 @@ export function toChineseRecommendationLabel(label: unknown): string {
   return raw;
 }
 
+export function normalizeRecommendationKeyword(keyword: unknown): string {
+  const raw = String(keyword ?? "").trim();
+  if (!raw) return "";
+
+  const key = keyOf(raw);
+  if (key.startsWith("judgment_")) {
+    const suffix = key.slice("judgment_".length);
+    return KEYWORD_ALIASES[suffix] || "";
+  }
+  if (KEYWORD_ALIASES[key]) return KEYWORD_ALIASES[key];
+
+  // AI 偶尔会输出 snake_case 代码词。能逐段翻译就翻译，否则不展示。
+  if (/^[a-z0-9_-]+$/i.test(raw) && raw.includes("_")) {
+    const translated = key.split("_").map((part) => KEYWORD_ALIASES[part]);
+    return translated.every(Boolean) ? translated.join("") : "";
+  }
+
+  return raw;
+}
+
 export function normalizeRecommendationLabels<T extends { topicType?: unknown; keywords?: unknown }>(
   rec: T,
   allowedTopicTypes?: readonly string[]
@@ -129,8 +173,8 @@ export function normalizeRecommendationLabels<T extends { topicType?: unknown; k
   const topicType = toExistingTopicType(rec.topicType, allowedTopicTypes);
   const keywords = Array.isArray(rec.keywords)
     ? rec.keywords
-        .map((keyword) => String(keyword ?? "").trim())
-        .filter((keyword) => keyword && !/^judgment[_-]/i.test(keyword))
+        .map(normalizeRecommendationKeyword)
+        .filter(Boolean)
     : [];
 
   return {
