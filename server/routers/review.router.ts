@@ -20,6 +20,7 @@ import {
   type ReviewInputData,
   type RejectedRec,
 } from "../services/ai.service.js";
+import { PRESET_TOPIC_TYPES } from "../../shared/enums.js";
 
 // 读取被否决的推荐（用于注入 prompt 排除 + 前端过滤）
 async function getRejected(): Promise<RejectedRec[]> {
@@ -29,6 +30,17 @@ async function getRejected(): Promise<RejectedRec[]> {
     .orderBy(desc(rejectedRecommendations.createdAt))
     .limit(200);
   return rows.map((r) => ({ title: r.title, topicType: r.topicType, keywords: r.keywords as string[] | null }));
+}
+
+async function getAllowedTopicTypes(): Promise<string[]> {
+  const result = await db
+    .selectDistinct({ topicType: topics.topicType })
+    .from(topics)
+    .where(isNull(topics.deletedAt))
+    .orderBy(topics.topicType);
+
+  return Array.from(new Set([...PRESET_TOPIC_TYPES, ...result.map((r) => r.topicType)]))
+    .sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
 // 把报告行解析为账号 id 列表：优先多账号数组，其次回退单账号，都没有则视为全矩阵(undefined)。
@@ -345,7 +357,8 @@ export const reviewRouter = router({
         .orderBy(asc(calendarEvents.eventDate));
 
       const rejected = await getRejected();
-      const { result, tokensUsed, prompt } = await generateRecommendations(data, analysisResult, upcomingEvents, rejected);
+      const allowedTopicTypes = await getAllowedTopicTypes();
+      const { result, tokensUsed, prompt } = await generateRecommendations(data, analysisResult, upcomingEvents, rejected, allowedTopicTypes);
 
       const [analysis] = await db
         .insert(aiAnalysisResults)
@@ -498,12 +511,14 @@ export const reviewRouter = router({
         .orderBy(asc(calendarEvents.eventDate));
 
       const rejected = await getRejected();
+      const allowedTopicTypes = await getAllowedTopicTypes();
       const { recommendation } = await regenerateOneRecommendation(
         data,
         { ...input.seed, priority: input.seed.priority || "normal" },
         upcomingEvents,
         rejected,
-        input.avoidTitles
+        input.avoidTitles,
+        allowedTopicTypes
       );
       return { recommendation };
     }),

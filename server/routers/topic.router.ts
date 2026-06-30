@@ -506,7 +506,8 @@ export const topicRouter = router({
       .from(topics)
       .where(isNull(topics.deletedAt))
       .orderBy(topics.topicType);
-    return result.map((r) => r.topicType);
+    return Array.from(new Set([...PRESET_TOPIC_TYPES, ...result.map((r) => r.topicType)]))
+      .sort((a, b) => a.localeCompare(b, "zh-CN"));
   }),
 
   listTypesWithCount: leaderProcedure.query(async () => {

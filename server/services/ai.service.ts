@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { STRICT_BANNED_WORDS } from "../../shared/bannedWords.js";
+import { normalizeRecommendationLabels } from "../../shared/recommendationLabels.js";
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -222,7 +223,14 @@ ${rejected.map(r => `- ${r.title}${r.topicType ? `（${r.topicType}）` : ""}${r
 `;
 }
 
-export async function generateRecommendations(data: ReviewInputData, analysisResult?: AnalysisResult, upcomingEvents?: UpcomingEvent[], rejected?: RejectedRec[]): Promise<{ result: RecommendationResult; tokensUsed: number; prompt: string }> {
+function allowedTopicTypePrompt(allowedTopicTypes?: readonly string[]) {
+  if (!allowedTopicTypes || allowedTopicTypes.length === 0) return "";
+  return `## 可用选题类型（topicType 必须且只能从下列现有类型中选择，不得新增）
+${allowedTopicTypes.map((t) => `- ${t}`).join("\n")}
+`;
+}
+
+export async function generateRecommendations(data: ReviewInputData, analysisResult?: AnalysisResult, upcomingEvents?: UpcomingEvent[], rejected?: RejectedRec[], allowedTopicTypes?: readonly string[]): Promise<{ result: RecommendationResult; tokensUsed: number; prompt: string }> {
   const prompt = `你是小红书内容运营策略专家，专注于日本留学领域。根据以下复盘数据、分析结果和近期重要事件节点，为下一周期推荐选题方向。
 
 ## 历史数据概览
@@ -251,19 +259,21 @@ ${STRICT_BANNED_WORDS.length > 0 ? `## 禁用词（严格禁止出现）
 ${STRICT_BANNED_WORDS.map(w => `- ${w}`).join("\n")}` : ""}
 
 ${rejectedBlock(rejected)}
+${allowedTopicTypePrompt(allowedTopicTypes)}
 ${JUDGMENT_CONTENT_GUIDE}
 
 请推荐5-8个下期选题方向，要求：
 1. **务必结合近期事件节点，提前布局热点内容**。
 2. 每个方向尽量做成判断型角度：能落到「一个具体的学生 / 一次具体决策 + 反直觉结论 + 为什么」，标题带立场与取舍（例如"为什么我不建议这个分数段死磕EJU""同样均分，为什么我劝一个冲早大、另一个先保MARCH"），而不是"XX攻略 / XX怎么写 / XX时间线 / 考点速记"这类知识型干货。
 3. 主动规避强工具性、纯专业科普、以及"求资料 / 领模板 / 扣1领取"式诱导白嫖的选题。
+4. topicType 是前端标签，**必须从上方可用选题类型中选择**；不要输出英文、拼音、snake_case、代码名或任何新类型（禁止 judgment_exam、judgment_path 这类值）。keywords 只是辅助关键词，可以写中文短词，但不会作为类型标签展示。
 以JSON格式输出：
 {
   "recommendations": [
     {
       "title": "判断型选题标题（聚焦具体对象、带立场或反差，而非泛泛的攻略）",
-      "topicType": "选题类型",
-      "keywords": ["关键词1", "关键词2"],
+      "topicType": "必须填写上方可用选题类型之一",
+      "keywords": ["中文关键词1", "中文关键词2"],
       "reason": "推荐理由：这个判断角度为什么能吸引'需要别人帮他做决策'的付费用户，以及与哪个时间节点相关",
       "priority": "high/normal/low"
     }
@@ -283,12 +293,13 @@ ${JUDGMENT_CONTENT_GUIDE}
     // 兜底：规整结构为数组 + 剔除禁用词（scrub 对非字符串安全）
     const scrub = (s: any) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), typeof s === "string" ? s : "");
     result.strategy = scrub(result.strategy);
-    result.recommendations = (Array.isArray(result.recommendations) ? result.recommendations : []).map((r: any) => ({
+    result.recommendations = (Array.isArray(result.recommendations) ? result.recommendations : []).map((r: any) => normalizeRecommendationLabels({
       ...r,
+      topicType: scrub(r.topicType),
       title: scrub(r.title),
       reason: scrub(r.reason),
       keywords: (Array.isArray(r.keywords) ? r.keywords : []).map(scrub),
-    }));
+    }, allowedTopicTypes));
 
     return { result, tokensUsed, prompt };
   } catch (e: any) {
@@ -305,7 +316,8 @@ export async function regenerateOneRecommendation(
   seed: SingleRecommendation,
   upcomingEvents?: UpcomingEvent[],
   rejected?: RejectedRec[],
-  avoidTitles?: string[]
+  avoidTitles?: string[],
+  allowedTopicTypes?: readonly string[]
 ): Promise<{ recommendation: SingleRecommendation; tokensUsed: number; prompt: string }> {
   const prompt = `你是小红书内容运营策略专家，专注于日本留学领域。下面这条选题推荐用户希望「换一个类似方向但更好/不同角度」的新建议。
 
@@ -328,13 +340,14 @@ ${rejectedBlock(rejected)}
 ${avoidTitles && avoidTitles.length > 0 ? `## 当前已有的其它推荐（不要与这些重复）
 ${avoidTitles.map(t => `- ${t}`).join("\n")}` : ""}
 
+${allowedTopicTypePrompt(allowedTopicTypes)}
 ${JUDGMENT_CONTENT_GUIDE}
 
-请只输出**一条**新的选题推荐，保持与原方向主题相关但角度/切入点不同，并且尽量做成判断型角度（具体对象 + 反直觉决策 + 为什么，有立场有取舍），避免退化成纯攻略/纯科普/工具型干货。以JSON格式输出：
+请只输出**一条**新的选题推荐，保持与原方向主题相关但角度/切入点不同，并且尽量做成判断型角度（具体对象 + 反直觉决策 + 为什么，有立场有取舍），避免退化成纯攻略/纯科普/工具型干货。topicType 必须从上方可用选题类型中选择，不要输出英文、拼音、snake_case、代码名或任何新类型（禁止 judgment_exam、judgment_path 这类值）。keywords 只是辅助关键词，可以写中文短词，但不会作为类型标签展示。以JSON格式输出：
 {
   "title": "判断型选题标题（聚焦具体对象、带立场或反差）",
-  "topicType": "选题类型",
-  "keywords": ["关键词1", "关键词2"],
+  "topicType": "必须填写上方可用选题类型之一",
+  "keywords": ["中文关键词1", "中文关键词2"],
   "reason": "推荐理由（这个判断角度为什么能吸引付费用户）",
   "priority": "high/normal/low"
 }
@@ -349,12 +362,13 @@ ${JUDGMENT_CONTENT_GUIDE}
     );
 
     const scrub = (s: any) => STRICT_BANNED_WORDS.reduce((acc, w) => (w ? acc.split(w).join("") : acc), typeof s === "string" ? s : "");
-    const recommendation: SingleRecommendation = {
+    const recommendation: SingleRecommendation = normalizeRecommendationLabels({
       ...parsed,
+      topicType: scrub(parsed.topicType),
       title: scrub(parsed.title),
       reason: scrub(parsed.reason),
       keywords: (Array.isArray(parsed.keywords) ? parsed.keywords : []).map(scrub),
-    };
+    }, allowedTopicTypes);
 
     return { recommendation, tokensUsed, prompt };
   } catch (e: any) {

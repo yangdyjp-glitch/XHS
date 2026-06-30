@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import { useReviewScope } from "../hooks/useReviewScope.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import { BANNED_WORDS } from "@shared/bannedWords.js";
+import { normalizeRecommendationLabels } from "@shared/recommendationLabels.js";
 import TopicCreateDialog from "../components/topic/TopicCreateDialog.js";
 
 const PRIORITY_LABEL: Record<string, string> = { high: "高", normal: "普通", low: "低" };
@@ -54,6 +55,7 @@ export default function RecommendationPage() {
   const recommendMutation = trpc.review.aiRecommend.useMutation();
   const pastQuery = trpc.review.listRecommendations.useQuery({ limit: 5 }, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.review.list.useQuery({ limit: 20 }, { refetchOnWindowFocus: false, staleTime: 0 });
+  const topicTypesQuery = trpc.topic.listTypes.useQuery(undefined, { refetchOnWindowFocus: false });
   const upcomingQuery = trpc.event.upcoming.useQuery({ days: 365 }, { refetchOnWindowFocus: false });
   const rejectedTitlesQuery = trpc.review.listRejectedTitles.useQuery(undefined, { refetchOnWindowFocus: false });
   const createEventMutation = trpc.event.create.useMutation({
@@ -84,8 +86,8 @@ export default function RecommendationPage() {
 
   // 推荐列表同步到本地可编辑副本（刷新/删除在副本上操作）
   useEffect(() => {
-    setLocalRecs(displayResult?.recommendations ?? null);
-  }, [displayResult]);
+    setLocalRecs(displayResult?.recommendations?.map((rec: any) => normalizeRecommendationLabels(rec, topicTypesQuery.data)) ?? null);
+  }, [displayResult, topicTypesQuery.data]);
 
   const rejectedSet = new Set(rejectedTitlesQuery.data || []);
   const visibleRecs = (localRecs || []).filter((r) => !rejectedSet.has(r.title));
@@ -114,8 +116,9 @@ export default function RecommendationPage() {
       accountId: isTeacher ? (selectedAccountId || undefined) : undefined,
     }, {
       onSuccess: (data) => {
+        const replacement = normalizeRecommendationLabels(data.recommendation, topicTypesQuery.data);
         setLocalRecs((prev) => {
-          const next = (prev || []).map((r) => (r.title === seedTitle ? data.recommendation : r));
+          const next = (prev || []).map((r) => (r.title === seedTitle ? replacement : r));
           if (currentAnalysisId) {
             const payload = next.map((r) => ({
               title: r.title,
@@ -344,9 +347,6 @@ export default function RecommendationPage() {
                     </div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="status-pill bg-[#DBEAFE] text-accent">{rec.topicType}</span>
-                      {rec.keywords?.map((k: string) => (
-                        <span key={k} className="status-pill bg-[#EDE9FE] text-[#6D28D9]">{k}</span>
-                      ))}
                     </div>
                     <p className="text-sm text-ink-soft">{rec.reason}</p>
                   </div>
