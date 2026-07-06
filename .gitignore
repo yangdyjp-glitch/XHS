@@ -4,3 +4,11 @@ dist/
 *.local
 logs/
 uploads/
+
+# AI tool local files
+.claude/
+_extract_pdf.py
+stats.html
+
+# Railway CLI local files
+.railway/
