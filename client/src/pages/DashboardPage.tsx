@@ -17,11 +17,12 @@ const HEALTH_LABEL: Record<string, { bg: string; text: string; label: string }> 
 };
 
 const PERIOD_OPTIONS = [
-  { value: "7" as const, label: "7天" },
-  { value: "14" as const, label: "14天" },
-  { value: "30" as const, label: "30天" },
-  { value: "all" as const, label: "全部" },
+  { value: "7" as const, label: "近7天", metricLabel: "近7天发布" },
+  { value: "14" as const, label: "近14天", metricLabel: "近14天发布" },
+  { value: "30" as const, label: "近30天", metricLabel: "近30天发布" },
+  { value: "all" as const, label: "全部时间", metricLabel: "累计发布" },
 ];
+type DashboardPeriod = (typeof PERIOD_OPTIONS)[number]["value"];
 
 function NoteRankRow({ n, rank }: { n: any; rank: number }) {
   return (
@@ -51,11 +52,11 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
 }
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState<"7" | "14" | "30" | "all">("30");
+  const [period, setPeriod] = useState<DashboardPeriod>("30");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]); // 空 = 全部账号
 
-  const dashQuery = trpc.dashboard.overview.useQuery(undefined, { refetchOnWindowFocus: false });
+  const dashQuery = trpc.dashboard.overview.useQuery({ period }, { refetchOnWindowFocus: false });
   const rankingsQuery = trpc.dashboard.rankings.useQuery(
     { period, accountIds: selectedAccounts.length > 0 ? selectedAccounts : undefined },
     { refetchOnWindowFocus: false }
@@ -63,6 +64,7 @@ export default function DashboardPage() {
 
   const data = dashQuery.data;
   const rankings = rankingsQuery.data;
+  const selectedPeriod = PERIOD_OPTIONS.find((p) => p.value === period) || PERIOD_OPTIONS[2];
 
   if (dashQuery.isLoading) {
     return <div className="text-muted text-center py-20 font-serif text-lg">加载中...</div>;
@@ -78,7 +80,8 @@ export default function DashboardPage() {
   const displayTotals = selectedAccounts.length > 0
     ? {
         totalAccounts: shownAccounts.length,
-        totalNotesThisWeek: shownAccounts.reduce((s, a) => s + a.weekPublished, 0),
+        totalNotesInPeriod: shownAccounts.reduce((s, a) => s + (a.periodPublished ?? a.weekPublished), 0),
+        totalNotesThisWeek: shownAccounts.reduce((s, a) => s + (a.periodPublished ?? a.weekPublished), 0),
         totalImpression: shownAccounts.reduce((s, a) => s + a.totalImpression, 0),
         totalView: shownAccounts.reduce((s, a) => s + a.totalView, 0),
         totalLike: shownAccounts.reduce((s, a) => s + a.totalLike, 0),
@@ -98,7 +101,7 @@ export default function DashboardPage() {
 
   const kpiItems = [
     { eyebrow: "活跃账号", value: displayTotals.totalAccounts, unit: "个", color: "" },
-    { eyebrow: "本周发布", value: displayTotals.totalNotesThisWeek, unit: "篇", color: "" },
+    { eyebrow: selectedPeriod.metricLabel, value: displayTotals.totalNotesInPeriod ?? displayTotals.totalNotesThisWeek, unit: "篇", color: "" },
     { eyebrow: "总曝光", value: displayTotals.totalImpression, unit: "", color: "text-[#2563EB]" },
     { eyebrow: "总阅读", value: displayTotals.totalView, unit: "", color: "text-[#059669]" },
     { eyebrow: "总点赞", value: displayTotals.totalLike, unit: "", color: "text-[#DC2626]" },
@@ -111,9 +114,15 @@ export default function DashboardPage() {
       {/* Editorial Header */}
       <div>
         <p className="eyebrow mb-2">总览</p>
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
           <h1 className="editorial-heading text-[36px] leading-tight">矩阵总览</h1>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <Dropdown
+              value={period}
+              onChange={(value) => setPeriod(value as DashboardPeriod)}
+              className="w-32"
+              options={PERIOD_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+            />
             <AccountFilter
               accounts={accounts}
               selected={selectedAccounts}
@@ -121,7 +130,7 @@ export default function DashboardPage() {
               widthClass="w-72"
             />
             <span className="mono-data text-muted hidden lg:inline">
-              数据快照 · {new Date().toLocaleDateString("zh-CN")}
+              数据快照 · {selectedPeriod.label} · {new Date().toLocaleDateString("zh-CN")}
             </span>
           </div>
         </div>
@@ -167,7 +176,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-hairline card-surface overflow-hidden">
           {shownAccounts.map((acct) => {
             const health = HEALTH_LABEL[acct.health] || HEALTH_LABEL.green;
-            const pct = Math.min(100, (acct.weekPublished / (acct.weeklyTarget || 3)) * 100);
+            const periodPublished = acct.periodPublished ?? acct.weekPublished;
+            const periodTarget = acct.periodTarget ?? (acct.weeklyTarget || 3);
+            const pct = Math.min(100, (periodPublished / periodTarget) * 100);
             return (
               <div key={acct.id} className="bg-card p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -186,8 +197,8 @@ export default function DashboardPage() {
                 {/* Progress bar */}
                 <div className="mb-3">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted">本周发布</span>
-                    <span className="font-mono text-ink-soft">{acct.weekPublished} / {acct.weeklyTarget || 3}</span>
+                    <span className="text-muted">时段发布</span>
+                    <span className="font-mono text-ink-soft">{periodPublished} / {periodTarget}</span>
                   </div>
                   <div className="w-full bg-paper-alt h-1.5">
                     <div
@@ -211,7 +222,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div className="mono-data text-muted mt-2">
-                  近30天 {acct.recentNoteCount} 篇
+                  {selectedPeriod.label} {acct.recentNoteCount} 篇
                 </div>
               </div>
             );
@@ -222,22 +233,7 @@ export default function DashboardPage() {
       {/* Rankings Section */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="eyebrow">内容排行</p>
-          <div className="flex border border-hairline bg-card">
-            {PERIOD_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setPeriod(opt.value)}
-                className={`px-3.5 py-1.5 font-mono text-[11px] tracking-wider transition-colors ${
-                  period === opt.value
-                    ? "bg-ink text-card font-medium"
-                    : "text-muted hover:text-ink"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <p className="eyebrow">内容排行 · {selectedPeriod.label}</p>
         </div>
 
         {rankingsQuery.isLoading ? (
@@ -348,7 +344,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <div className="border-t border-hairline pt-4 pb-2">
         <p className="mono-data text-muted text-center">
-          数据快照 · {new Date().toLocaleDateString("zh-CN")} · 矩阵罗盘
+          数据快照 · {selectedPeriod.label} · {new Date().toLocaleDateString("zh-CN")} · 矩阵罗盘
         </p>
       </div>
     </div>

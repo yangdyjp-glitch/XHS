@@ -7,6 +7,7 @@ import { accounts, users, notes, topics, metricSnapshots } from "../../drizzle/s
 interface NoteWithScore {
   noteId: number;
   title: string;
+  accountId: number;
   accountName: string;
   topicType: string;
   creatorName: string;
@@ -22,8 +23,26 @@ interface NoteWithScore {
   score: number;
 }
 
+const dashboardPeriodSchema = z.enum(["7", "14", "30", "all"]);
+type DashboardPeriod = z.infer<typeof dashboardPeriodSchema>;
+
 function computeScore(m: { impression: number; view: number; likeCount: number; collect: number; commentCount: number; shareCount: number }) {
   return m.impression + m.view * 2 + m.likeCount * 3 + m.collect * 4 + m.commentCount * 5 + m.shareCount * 3;
+}
+
+function getPeriodStart(period: DashboardPeriod) {
+  if (period === "all") return undefined;
+  const days = parseInt(period, 10);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - days + 1);
+  return start;
+}
+
+function getPeriodTarget(weeklyTarget: number | null, period: DashboardPeriod) {
+  const target = weeklyTarget || 3;
+  if (period === "all") return target;
+  return Math.max(1, Math.ceil(target * (parseInt(period, 10) / 7)));
 }
 
 async function fetchAllNotesWithScores(since?: Date, accountIds?: number[]): Promise<NoteWithScore[]> {
@@ -64,6 +83,7 @@ async function fetchAllNotesWithScores(since?: Date, accountIds?: number[]): Pro
     return {
       noteId: n.id,
       title: n.finalTitle,
+      accountId: n.accountId,
       accountName: n.accountName || "",
       topicType: n.topicType || "",
       creatorName: n.creatorName || "",
@@ -82,17 +102,11 @@ async function fetchAllNotesWithScores(since?: Date, accountIds?: number[]): Pro
 }
 
 export const dashboardRouter = router({
-  overview: protectedProcedure.query(async () => {
-    const now = new Date();
-    const day = now.getDay();
-    const diffToMonday = day === 0 ? 6 : day - 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - diffToMonday);
-    weekStart.setHours(0, 0, 0, 0);
-
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(now.getDate() - 30);
-
+  overview: protectedProcedure
+  .input(z.object({ period: dashboardPeriodSchema }).optional())
+  .query(async ({ input }) => {
+    const period = input?.period ?? "30";
+    const periodStart = getPeriodStart(period);
     const accts = await db
       .select({
         id: accounts.id,
@@ -108,15 +122,15 @@ export const dashboardRouter = router({
       .where(eq(accounts.status, "active"))
       .orderBy(accounts.createdAt);
 
-    const allNotes = await fetchAllNotesWithScores();
-    const recentNotes = allNotes.filter((n) => new Date(n.publishedAt) >= thirtyDaysAgo);
-    const thisWeekNotes = allNotes.filter((n) => new Date(n.publishedAt) >= weekStart);
+    const periodNotes = await fetchAllNotesWithScores(periodStart);
 
     // 按「账号 + 状态」统计选题数（排除回收箱），供选题进度按账号筛选
+    const topicConditions = [isNull(topics.deletedAt)];
+    if (periodStart) topicConditions.push(gte(topics.createdAt, periodStart));
     const topicCountsRaw = await db
       .select({ accountId: topics.accountId, status: topics.status, count: sql<number>`count(*)::int` })
       .from(topics)
-      .where(isNull(topics.deletedAt))
+      .where(and(...topicConditions))
       .groupBy(topics.accountId, topics.status);
 
     // 全矩阵选题进度（所有账号合计），保持原口径
@@ -126,20 +140,19 @@ export const dashboardRouter = router({
     }
 
     const accountStats = accts.map((acct) => {
-      const acctWeekNotes = thisWeekNotes.filter((n) => n.accountName === acct.accountName);
-      const acctRecentNotes = recentNotes.filter((n) => n.accountName === acct.accountName);
+      const acctPeriodNotes = periodNotes.filter((n) => n.accountId === acct.id);
 
-      const totalImpression = acctRecentNotes.reduce((s, n) => s + n.impression, 0);
-      const totalView = acctRecentNotes.reduce((s, n) => s + n.view, 0);
-      const totalLike = acctRecentNotes.reduce((s, n) => s + n.likeCount, 0);
-      const totalCollect = acctRecentNotes.reduce((s, n) => s + n.collect, 0);
-      const totalComment = acctRecentNotes.reduce((s, n) => s + n.commentCount, 0);
+      const totalImpression = acctPeriodNotes.reduce((s, n) => s + n.impression, 0);
+      const totalView = acctPeriodNotes.reduce((s, n) => s + n.view, 0);
+      const totalLike = acctPeriodNotes.reduce((s, n) => s + n.likeCount, 0);
+      const totalCollect = acctPeriodNotes.reduce((s, n) => s + n.collect, 0);
+      const totalComment = acctPeriodNotes.reduce((s, n) => s + n.commentCount, 0);
 
-      const weekPublished = acctWeekNotes.length;
-      const target = acct.weeklyTarget || 3;
+      const periodPublished = acctPeriodNotes.length;
+      const target = getPeriodTarget(acct.weeklyTarget, period);
       let health: "green" | "yellow" | "red" = "green";
-      if (weekPublished < target * 0.5) health = "red";
-      else if (weekPublished < target) health = "yellow";
+      if (periodPublished < target * 0.5) health = "red";
+      else if (periodPublished < target) health = "yellow";
 
       // 该账号各状态的选题数（供前端按账号合计选题进度）
       const topicsByStatus: Record<string, number> = {};
@@ -149,8 +162,10 @@ export const dashboardRouter = router({
 
       return {
         ...acct,
-        weekPublished,
-        recentNoteCount: acctRecentNotes.length,
+        weekPublished: periodPublished,
+        periodPublished,
+        periodTarget: target,
+        recentNoteCount: acctPeriodNotes.length,
         totalImpression, totalView, totalLike, totalCollect, totalComment,
         topicsByStatus,
         health,
@@ -159,8 +174,9 @@ export const dashboardRouter = router({
 
     const matrixTotals = {
       totalAccounts: accts.length,
-      totalNotesThisWeek: thisWeekNotes.length,
-      totalNotesMonth: recentNotes.length,
+      totalNotesThisWeek: periodNotes.length,
+      totalNotesInPeriod: periodNotes.length,
+      totalNotesMonth: periodNotes.length,
       totalImpression: accountStats.reduce((s, a) => s + a.totalImpression, 0),
       totalView: accountStats.reduce((s, a) => s + a.totalView, 0),
       totalLike: accountStats.reduce((s, a) => s + a.totalLike, 0),
@@ -169,18 +185,13 @@ export const dashboardRouter = router({
       topicsByStatus: matrixTopicsByStatus,
     };
 
-    return { accounts: accountStats, totals: matrixTotals };
+    return { accounts: accountStats, totals: matrixTotals, period };
   }),
 
   rankings: protectedProcedure
-    .input(z.object({ period: z.enum(["7", "14", "30", "all"]), accountIds: z.array(z.number()).optional() }))
+    .input(z.object({ period: dashboardPeriodSchema, accountIds: z.array(z.number()).optional() }))
     .query(async ({ input }) => {
-      const now = new Date();
-      let since: Date | undefined;
-      if (input.period !== "all") {
-        since = new Date(now);
-        since.setDate(now.getDate() - parseInt(input.period));
-      }
+      const since = getPeriodStart(input.period);
 
       const allNotes = await fetchAllNotesWithScores(since, input.accountIds);
       const sorted = [...allNotes].sort((a, b) => b.score - a.score);
