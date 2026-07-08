@@ -321,6 +321,48 @@ When adding controls:
 9. If adding generated AI recommendation text, sanitize it so internal labels or English machine keys do not leak into the UI.
 10. If modifying dashboard aggregation, define whether the period applies to publish date, snapshot date, or topic creation date.
 
+## If The Local Clone Is Stale
+
+If this file was manually copied to another computer whose local repository is old, do not blindly edit files yet.
+
+Recommended handoff flow for a stale clone:
+
+1. First check local state:
+
+```bash
+git status --short --branch
+```
+
+2. If the working tree has uncommitted changes, stop and ask the user whether those changes should be kept, committed, stashed, or discarded. Do not overwrite them.
+
+3. If the working tree is clean, sync from GitHub:
+
+```bash
+git fetch origin
+git switch master
+git pull --ff-only origin master
+```
+
+4. After pulling, this official `AGENTS.md` should exist from the repository. Read it again from the updated codebase.
+
+5. Install or refresh dependencies if needed:
+
+```bash
+pnpm install
+```
+
+6. Verify the updated project before making new changes:
+
+```bash
+pnpm build
+```
+
+Important note for manual transfer:
+
+- Prefer pasting this file into the Codex chat as context, or placing it outside the repository temporarily.
+- If you manually create `AGENTS.md` inside an old clone before pulling, Git may refuse to pull because the remote now also contains `AGENTS.md`.
+- In that case, move the temporary file out of the repository, run the pull, then use the repository version of `AGENTS.md`.
+
 ## Suggested First Steps For A New Codex Session
 
 1. Read this file.
