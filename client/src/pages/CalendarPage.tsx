@@ -1,152 +1,100 @@
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useMemo, useState } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
-
-const STATUS_BG: Record<string, string> = {
-  pending_review: "bg-[#F3F4F6]",   // 浅灰
-  approved: "bg-[#FEF9C3]",         // 浅黄
-  writing: "bg-[#DCFCE7]",          // 浅绿
-  published: "bg-[#DBEAFE]",        // 浅蓝
-};
+import NoteLink from "../components/ui/NoteLink.js";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function getFirstDayOfWeek(year: number, month: number) {
-  const day = new Date(year, month, 1).getDay();
-  return day === 0 ? 6 : day - 1; // Monday = 0
+function dateKey(value: string | Date) {
+  const date = new Date(value);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 export default function CalendarPage() {
   const { isTeacher, selectedAccountId } = useAuth();
-  const [, navigate] = useLocation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-
-  const effectiveAccountId = isTeacher ? (selectedAccountId || undefined) : undefined;
-  const topicsQuery = trpc.topic.list.useQuery(
-    { accountId: effectiveAccountId },
-    { refetchOnWindowFocus: false }
+  const postsQuery = trpc.note.listManaged.useQuery(
+    { accountId: isTeacher ? (selectedAccountId || undefined) : undefined },
+    { refetchOnWindowFocus: false },
   );
 
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfWeek(year, month);
-
-  const topicsByDate = useMemo(() => {
-    const map: Record<string, NonNullable<typeof topicsQuery.data>> = {};
-    if (topicsQuery.data) {
-      for (const t of topicsQuery.data) {
-        if (t.plannedPublishDate) {
-          const key = t.plannedPublishDate;
-          if (!map[key]) map[key] = [];
-          map[key].push(t);
-        }
-      }
+  const byDate = useMemo(() => {
+    const result: Record<string, NonNullable<typeof postsQuery.data>> = {};
+    for (const post of postsQuery.data ?? []) {
+      if (!post.publishedAt) continue;
+      const key = dateKey(post.publishedAt);
+      if (!result[key]) result[key] = [];
+      result[key].push(post);
     }
-    return map;
-  }, [topicsQuery.data]);
+    return result;
+  }, [postsQuery.data]);
 
-  const goPrev = () => {
-    if (month === 0) { setYear(year - 1); setMonth(11); }
-    else setMonth(month - 1);
-  };
-  const goNext = () => {
-    if (month === 11) { setYear(year + 1); setMonth(0); }
-    else setMonth(month + 1);
-  };
-  const goToday = () => { setYear(now.getFullYear()); setMonth(now.getMonth()); };
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const sundayBased = new Date(year, month, 1).getDay();
+  const firstDay = sundayBased === 0 ? 6 : sundayBased - 1;
+  const cells: Array<number | null> = [
+    ...Array.from({ length: firstDay }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const isToday = (day: number) =>
-    year === now.getFullYear() && month === now.getMonth() && day === now.getDate();
-
-  const formatDateKey = (day: number) => {
-    const m = String(month + 1).padStart(2, "0");
-    const d = String(day).padStart(2, "0");
-    return `${year}-${m}-${d}`;
+  const goPrevious = () => {
+    if (month === 0) { setYear((value) => value - 1); setMonth(11); }
+    else setMonth((value) => value - 1);
+  };
+  const goNext = () => {
+    if (month === 11) { setYear((value) => value + 1); setMonth(0); }
+    else setMonth((value) => value + 1);
   };
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-6">
-        <div className="flex items-end justify-between mb-3">
+        <div className="flex items-end justify-between gap-4 mb-3">
           <div>
             <p className="eyebrow mb-1">CALENDAR</p>
-            <h1 className="editorial-heading text-[28px] leading-tight">发布日历</h1>
+            <h1 className="editorial-heading text-[28px] leading-tight">真实发布日历</h1>
+            <p className="text-sm text-muted mt-1">发布时间全部来自小红书创作者后台，不使用计划日期。</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={goPrev} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent transition-colors">←</button>
-            <button onClick={goToday} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent transition-colors font-mono">今天</button>
-            <span className="font-serif font-bold text-ink text-lg px-3 min-w-[140px] text-center">
-              {year}年{month + 1}月
-            </span>
-            <button onClick={goNext} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent transition-colors">→</button>
+            <button onClick={goPrevious} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent">←</button>
+            <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()); }} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent">今天</button>
+            <span className="font-serif font-bold text-ink text-lg min-w-[130px] text-center">{year}年{month + 1}月</span>
+            <button onClick={goNext} className="border border-hairline bg-card px-3 py-1.5 text-sm hover:border-accent">→</button>
           </div>
         </div>
         <div className="h-[1.5px] bg-ink" />
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 mb-4 text-xs">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#F3F4F6] border border-hairline" /> 待审批</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#FEF9C3] border border-hairline" /> 已通过</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#DCFCE7] border border-hairline" /> 写作中</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#DBEAFE] border border-hairline" /> 已发布</span>
-      </div>
-
-      {/* Calendar Grid */}
       <div className="card-surface overflow-hidden">
-        {/* Weekday headers */}
         <div className="grid grid-cols-7 border-b border-ink">
-          {WEEKDAYS.map((w) => (
-            <div key={w} className="px-2 py-2 text-center eyebrow">{w}</div>
-          ))}
+          {WEEKDAYS.map((weekday) => <div key={weekday} className="px-2 py-2 text-center eyebrow">{weekday}</div>)}
         </div>
-
-        {/* Day cells */}
         <div className="grid grid-cols-7">
-          {cells.map((day, idx) => {
-            const dateKey = day ? formatDateKey(day) : "";
-            const dayTopics = day ? (topicsByDate[dateKey] || []) : [];
+          {cells.map((day, index) => {
+            const key = day ? `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
+            const posts = day ? (byDate[key] ?? []) : [];
+            const isToday = day && year === now.getFullYear() && month === now.getMonth() && day === now.getDate();
             return (
-              <div
-                key={idx}
-                className={`border-b border-r border-hairline min-h-[120px] ${
-                  day ? "bg-card" : "bg-paper-alt/50"
-                } ${idx % 7 === 0 ? "" : ""}`}
-              >
+              <div key={`${key}-${index}`} className={`border-b border-r border-hairline min-h-[125px] ${day ? "bg-card" : "bg-paper-alt/50"}`}>
                 {day && (
                   <div className="p-1.5">
-                    <div className={`text-xs font-mono mb-1 ${
-                      isToday(day)
-                        ? "bg-accent text-white w-6 h-6 rounded-full flex items-center justify-center font-bold"
-                        : "text-muted pl-1"
-                    }`}>
-                      {day}
-                    </div>
-                    <div className="space-y-0.5">
-                      {dayTopics.map((topic) => (
-                        <div
-                          key={topic.id}
-                          onClick={() => navigate(`/topic/${topic.id}`)}
-                          className={`px-1.5 py-1 cursor-pointer rounded-sm text-[11px] leading-tight hover:opacity-80 transition-opacity ${STATUS_BG[topic.status] || "bg-paper-alt"}`}
-                        >
-                          <div className="font-medium text-ink line-clamp-1">{topic.title}</div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {topic.accountColor && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: topic.accountColor }} />}
-                            <span className="text-muted truncate">{topic.accountName}{topic.creatorName ? ` · ${topic.creatorName}` : ""}</span>
-                          </div>
-                        </div>
+                    <div className={`text-xs font-mono mb-1 ${isToday ? "bg-accent text-white w-6 h-6 rounded-full flex items-center justify-center" : "text-muted pl-1"}`}>{day}</div>
+                    <div className="space-y-1">
+                      {posts.map((post) => (
+                        <NoteLink key={post.id} raw={post.xhsNoteUrl} className="block rounded-sm bg-[#DBEAFE] px-1.5 py-1 hover:bg-[#BFDBFE]">
+                          <div className="text-[11px] font-medium text-ink line-clamp-2">{post.finalTitle}</div>
+                          <div className="text-[10px] text-muted truncate mt-0.5">{post.accountName}</div>
+                        </NoteLink>
                       ))}
                     </div>
                   </div>

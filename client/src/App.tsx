@@ -11,7 +11,7 @@ import ChangePasswordPage from "./pages/ChangePasswordPage.js";
 import AccountSelectPage from "./pages/AccountSelectPage.js";
 
 // Lazy load all authenticated pages — only download when navigated to
-const KanbanPage = lazy(() => import("./pages/KanbanPage.js"));
+const PostsPage = lazy(() => import("./pages/PostsPage.js"));
 const DataEntryPage = lazy(() => import("./pages/DataEntryPage.js"));
 const DataOverviewPage = lazy(() => import("./pages/DataOverviewPage.js"));
 const ReviewPage = lazy(() => import("./pages/ReviewPage.js"));
@@ -19,23 +19,17 @@ const RecommendationPage = lazy(() => import("./pages/RecommendationPage.js"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.js"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage.js"));
 const UsersPage = lazy(() => import("./pages/UsersPage.js"));
-const TopicDetailPage = lazy(() => import("./pages/TopicDetailPage.js"));
 const TypesPage = lazy(() => import("./pages/TypesPage.js"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage.js"));
-const TrashPage = lazy(() => import("./pages/TrashPage.js"));
-const AutoFetchPage = lazy(() => import("./pages/AutoFetchPage.js"));
 
 // Prefetch page chunks after initial render so they're cached for instant navigation
 function usePrefetchRoutes() {
   useEffect(() => {
     const timer = setTimeout(() => {
       // 预取全部懒加载页面的 JS chunk，点击任意菜单都能秒开
-      import("./pages/KanbanPage.js");
+      import("./pages/PostsPage.js");
       import("./pages/CalendarPage.js");
-      import("./pages/TopicDetailPage.js");
-      import("./pages/TrashPage.js");
       import("./pages/DataEntryPage.js");
-      import("./pages/AutoFetchPage.js");
       import("./pages/DataOverviewPage.js");
       import("./pages/ReviewPage.js");
       import("./pages/RecommendationPage.js");
@@ -84,15 +78,13 @@ function AppRoutes() {
         <ErrorBoundary key={location}>
         <Suspense fallback={<div className="flex items-center justify-center py-20 text-muted">加载中...</div>}>
           <Switch>
-            <Route path="/" component={KanbanPage} />
+            <Route path="/" component={PostsPage} />
             <Route path="/calendar" component={CalendarPage} />
-            <Route path="/trash" component={TrashPage} />
-            <Route path="/topic/:id" component={TopicDetailPage} />
             <Route path="/data-entry" component={DataEntryPage} />
-            <Route path="/auto-fetch" component={AutoFetchPage} />
             <Route path="/data-overview" component={DataOverviewPage} />
             <Route path="/reviews" component={ReviewPage} />
             <Route path="/recommendations" component={RecommendationPage} />
+            <Route path="/topics" component={RecommendationPage} />
             {!isTeacher && <Route path="/dashboard" component={DashboardPage} />}
             {!isTeacher && <Route path="/admin/accounts" component={AccountsPage} />}
             {!isTeacher && <Route path="/admin/users" component={UsersPage} />}

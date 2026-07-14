@@ -58,6 +58,6 @@ echo.
 echo Next steps:
 echo   1. Install OpenCLI extension in Chrome
 echo   2. Log in to XHS Creator Backend in Chrome
-echo   3. Open the platform - click Auto Fetch
+echo   3. Open the platform - upload XHS post links
 echo.
 pause

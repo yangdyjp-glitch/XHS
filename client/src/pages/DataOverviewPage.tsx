@@ -13,6 +13,7 @@ type SortKey =
   | "collect"
   | "comment"
   | "share"
+  | "coverClickRate"
   | "engagement";
 
 function daysSincePublish(publishedAt: string | Date): number {
@@ -113,6 +114,7 @@ export default function DataOverviewPage() {
   const filteredNotes = useMemo(() => {
     if (!notesQuery.data) return undefined;
     const filtered = notesQuery.data.filter((n) => {
+      if (!n.publishedAt) return false;
       const pub = toYMD(new Date(n.publishedAt));
       if (filterStart && pub < filterStart) return false;
       if (filterEnd && pub > filterEnd) return false;
@@ -130,6 +132,7 @@ export default function DataOverviewPage() {
         case "collect": return snap.collect;
         case "comment": return snap.commentCount;
         case "share": return snap.shareCount ?? 0;
+        case "coverClickRate": return snap.coverClickRate ?? 0;
         case "engagement":
           return snap.impression > 0
             ? (snap.likeCount + snap.collect + snap.commentCount + (snap.shareCount ?? 0)) / snap.impression
@@ -142,7 +145,7 @@ export default function DataOverviewPage() {
     return [...filtered].sort((a, b) => {
       // 发布时长：asc=最新发布在前（发布时间从近到远），以发布时间倒序实现
       if (sort.key === "age") {
-        return dirMul * (new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+        return dirMul * (new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime());
       }
       if (sort.key === "account") {
         return dirMul * (a.accountName || "").localeCompare(b.accountName || "", "zh-Hans-CN");
@@ -254,13 +257,14 @@ export default function DataOverviewPage() {
                 <th className="px-2 py-2.5 text-right">{sortBtn("collect", "收藏")}</th>
                 <th className="px-2 py-2.5 text-right">{sortBtn("comment", "评论")}</th>
                 <th className="px-2 py-2.5 text-right">{sortBtn("share", "分享")}</th>
+                <th className="px-2 py-2.5 text-right">{sortBtn("coverClickRate", "首图点击率")}</th>
                 <th className="px-2 py-2.5 text-right">{sortBtn("engagement", "互动率")}</th>
                 <th className="px-2 py-2.5 text-center eyebrow pr-3 w-16">链接</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline">
               {filteredNotes.map((note) => {
-                const age = daysSincePublish(note.publishedAt);
+                const age = daysSincePublish(note.publishedAt!);
                 const snap = note.metrics.find((m) => m.daysSincePublish === snapshotDay) || null;
                 const engagement = snap && snap.impression > 0
                   ? (((snap.likeCount + snap.collect + snap.commentCount + (snap.shareCount ?? 0)) / snap.impression) * 100).toFixed(1)
@@ -311,6 +315,7 @@ export default function DataOverviewPage() {
                         <td className="px-2 py-2.5 text-right font-mono text-[#D97706]">{snap.collect.toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-right font-mono text-[#7C3AED]">{snap.commentCount.toLocaleString()}</td>
                         <td className="px-2 py-2.5 text-right font-mono text-[#0891B2]">{(snap.shareCount ?? 0).toLocaleString()}</td>
+                        <td className="px-2 py-2.5 text-right font-mono text-[#2563EB]">{snap.coverClickRate == null ? "—" : `${snap.coverClickRate.toFixed(2)}%`}</td>
                         <td className="px-2 py-2.5 text-right font-mono text-accent font-medium">
                           {engagement}%
                           {hasMultiple && <span className="text-muted text-[9px] ml-1">{isExpanded ? "▲" : "▼"}</span>}
@@ -327,7 +332,7 @@ export default function DataOverviewPage() {
                       </>
                     ) : (
                       <>
-                        <td colSpan={7} className="px-2 py-2.5 text-center text-muted text-xs italic">
+                        <td colSpan={8} className="px-2 py-2.5 text-center text-muted text-xs italic">
                           暂无{snapshotDay}天数据
                         </td>
                         <td className="px-2 py-2.5 text-center pr-3">
@@ -366,6 +371,7 @@ export default function DataOverviewPage() {
                         <span><span className="text-[#DC2626]">{m.likeCount}</span> <span className="text-muted">赞</span></span>
                         <span><span className="text-[#D97706]">{m.collect}</span> <span className="text-muted">藏</span></span>
                         <span><span className="text-[#7C3AED]">{m.commentCount}</span> <span className="text-muted">评</span></span>
+                        <span><span className="text-[#2563EB]">{m.coverClickRate == null ? "—" : `${m.coverClickRate.toFixed(2)}%`}</span> <span className="text-muted">首图</span></span>
                         <span className="text-accent font-mono font-medium">{eng}%</span>
                       </div>
                     );

@@ -9,6 +9,7 @@ import {
   date,
   jsonb,
   unique,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 // ==================== 用户与组织 ====================
@@ -84,15 +85,20 @@ export const topics = pgTable("topics", {
 export const notes = pgTable("notes", {
   id: serial("id").primaryKey(),
   topicId: integer("topic_id")
-    .notNull()
     .references(() => topics.id),
   accountId: integer("account_id")
     .notNull()
     .references(() => accounts.id),
   finalTitle: varchar("final_title", { length: 200 }).notNull(),
   xhsNoteUrl: varchar("xhs_note_url", { length: 500 }).notNull(),
+  externalNoteId: varchar("external_note_id", { length: 64 }),
   coverImage: varchar("cover_image", { length: 500 }),
-  publishedAt: timestamp("published_at").notNull(),
+  // 真实发布时间只接受小红书创作者后台返回值；首次登记链接时允许为空。
+  publishedAt: timestamp("published_at"),
+  registeredBy: integer("registered_by").references(() => users.id),
+  syncStatus: varchar("sync_status", { length: 20 }).notNull().default("pending"),
+  syncError: text("sync_error"),
+  lastSyncedAt: timestamp("last_synced_at"),
   status: varchar("status", { length: 20 }).notNull().default("live"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -112,6 +118,7 @@ export const metricSnapshots = pgTable(
     collect: integer("collect").notNull(),
     commentCount: integer("comment_count").notNull(),
     shareCount: integer("share_count"),
+    coverClickRate: doublePrecision("cover_click_rate"),
     dmCount: integer("dm_count"),
     dmValidCount: integer("dm_valid_count"),
     recordedBy: integer("recorded_by")

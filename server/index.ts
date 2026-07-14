@@ -134,7 +134,7 @@ app.get("/api/metric/pending", async (req, res) => {
     const { db } = await import("./db.js");
     const { notes, accounts, metricSnapshots } = await import("../drizzle/schema.js");
     const { SNAPSHOT_DAYS } = await import("../shared/enums.js");
-    const { eq, and, inArray } = await import("drizzle-orm");
+    const { eq, and, inArray, isNotNull } = await import("drizzle-orm");
     const token = getTokenFromRequest(req);
     if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
     const payload = await verifyToken(token);
@@ -151,6 +151,7 @@ app.get("/api/metric/pending", async (req, res) => {
       else { res.json([]); return; }
     }
     conditions.push(eq(notes.status, "live"));
+    conditions.push(isNotNull(notes.publishedAt));
     const allNotes = await db.select({ id: notes.id, xhsNoteUrl: notes.xhsNoteUrl, publishedAt: notes.publishedAt, finalTitle: notes.finalTitle, accountName: accounts.accountName })
       .from(notes).leftJoin(accounts, eq(notes.accountId, accounts.id)).where(and(...conditions));
     const allSnaps = await db.select({ noteId: metricSnapshots.noteId, daysSincePublish: metricSnapshots.daysSincePublish }).from(metricSnapshots);
@@ -158,6 +159,7 @@ app.get("/api/metric/pending", async (req, res) => {
     const now = new Date();
     const pending = [];
     for (const note of allNotes) {
+      if (!note.publishedAt) continue;
       const daysSince = Math.floor((now.getTime() - new Date(note.publishedAt).getTime()) / 86400000);
       const missing = (SNAPSHOT_DAYS as readonly number[]).filter((d) => daysSince >= d && !snapSet.has(`${note.id}_${d}`));
       if (missing.length > 0) pending.push({ noteId: note.id, xhsNoteUrl: note.xhsNoteUrl, publishedAt: new Date(note.publishedAt).toISOString(), finalTitle: note.finalTitle, accountName: note.accountName, missingDays: missing });
@@ -170,8 +172,9 @@ app.post("/api/metric/upsert", async (req, res) => {
   try {
     const { getTokenFromRequest, verifyToken } = await import("./_core/auth.js");
     const { db } = await import("./db.js");
-    const { metricSnapshots, notes } = await import("../drizzle/schema.js");
+    const { accounts, metricSnapshots, notes, users } = await import("../drizzle/schema.js");
     const { SNAPSHOT_DAYS } = await import("../shared/enums.js");
+    const { toShanghaiDateKey } = await import("../shared/xhsSync.js");
     const { eq, and } = await import("drizzle-orm");
     const token = getTokenFromRequest(req);
     if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -179,11 +182,17 @@ app.post("/api/metric/upsert", async (req, res) => {
     if (!payload) { res.status(401).json({ error: "Invalid token" }); return; }
     const input = req.body;
     if (!(SNAPSHOT_DAYS as readonly number[]).includes(input.daysSincePublish)) { res.status(400).json({ error: "Invalid daysSincePublish" }); return; }
-    const [note] = await db.select({ publishedAt: notes.publishedAt }).from(notes).where(eq(notes.id, input.noteId)).limit(1);
+    const [currentUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, payload.userId)).limit(1);
+    if (!currentUser) { res.status(401).json({ error: "User no longer exists" }); return; }
+    const [note] = await db.select({ publishedAt: notes.publishedAt, accountId: notes.accountId }).from(notes).where(eq(notes.id, input.noteId)).limit(1);
     if (!note) { res.status(404).json({ error: "Note not found" }); return; }
-    const snapshotDate = new Date(note.publishedAt);
-    snapshotDate.setDate(snapshotDate.getDate() + input.daysSincePublish);
-    const data = { noteId: input.noteId, daysSincePublish: input.daysSincePublish, impression: input.impression, view: input.view, likeCount: input.likeCount, collect: input.collect, commentCount: input.commentCount, shareCount: input.shareCount, notes: input.notes ?? null, snapshotDate: snapshotDate.toISOString().split("T")[0], recordedBy: payload.userId };
+    if (!note.publishedAt) { res.status(400).json({ error: "Note publish time has not been synced" }); return; }
+    if (currentUser.role !== "leader") {
+      const [ownedAccount] = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, payload.userId))).limit(1);
+      if (!ownedAccount) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
+    const snapshotDate = new Date(new Date(note.publishedAt).getTime() + input.daysSincePublish * 86_400_000);
+    const data = { noteId: input.noteId, daysSincePublish: input.daysSincePublish, impression: input.impression, view: input.view, likeCount: input.likeCount, collect: input.collect, commentCount: input.commentCount, shareCount: input.shareCount, coverClickRate: input.coverClickRate ?? null, notes: input.notes ?? null, snapshotDate: toShanghaiDateKey(snapshotDate), recordedBy: payload.userId };
     const existing = await db.select({ id: metricSnapshots.id }).from(metricSnapshots).where(and(eq(metricSnapshots.noteId, input.noteId), eq(metricSnapshots.daysSincePublish, input.daysSincePublish))).limit(1);
     if (existing.length > 0) {
       await db.update(metricSnapshots).set(data).where(eq(metricSnapshots.id, existing[0].id));
@@ -208,6 +217,30 @@ async function runAutoMigrations() {
   try {
     const { db } = await import("./db.js");
     const { sql } = await import("drizzle-orm");
+
+    // 新发布流程：帖子直接登记链接，不再依赖选题；真实发布时间由小红书后台回填。
+    await db.execute(sql`ALTER TABLE notes ALTER COLUMN topic_id DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE notes ALTER COLUMN published_at DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS external_note_id varchar(64)`);
+    await db.execute(sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS registered_by integer REFERENCES users(id)`);
+    await db.execute(sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS sync_status varchar(20) NOT NULL DEFAULT 'pending'`);
+    await db.execute(sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS sync_error text`);
+    await db.execute(sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS last_synced_at timestamp`);
+    await db.execute(sql`ALTER TABLE metric_snapshots ADD COLUMN IF NOT EXISTS cover_click_rate double precision`);
+    await db.execute(sql`
+      UPDATE notes n
+      SET registered_by = t.creator_id
+      FROM topics t
+      WHERE n.topic_id = t.id AND n.registered_by IS NULL
+    `);
+    await db.execute(sql`
+      UPDATE notes
+      SET external_note_id = substring(xhs_note_url from '[0-9A-Fa-f]{24}')
+      WHERE external_note_id IS NULL
+    `);
+    // “编辑”角色取消；历史编辑账号统一迁移为老师。
+    await db.execute(sql`UPDATE users SET role = 'teacher', updated_at = now() WHERE role = 'editor'`);
+    console.log("[Compass] Direct-post sync columns and employee role migration ensured.");
 
     // Feature 1: Add deleted_at column to topics
     await db.execute(sql`
@@ -238,21 +271,6 @@ async function runAutoMigrations() {
       UPDATE notes SET cover_image = NULL WHERE cover_image LIKE '/uploads/%'
     `);
     console.log("[Compass] Cleaned old /uploads/ cover URLs.");
-
-    // 一次性回填：历史上发布时把 published_at 误写成了创建时刻。把"发布时间≈创建时间"
-    // (相差<120秒，明显是 bug)的笔记，改为其选题的计划发布日期(::timestamp = UTC 午夜，
-    // 服务器时区为 UTC，与 publish/republish 的 new Date(planned) 结果一致)。
-    // 单条纯 SQL、显式类型转换，避免参数类型推断问题；带 <> 守卫，幂等(已修正者不再更新)。
-    const fix: any = await db.execute(sql`
-      UPDATE notes n
-      SET published_at = t.planned_publish_date::timestamp
-      FROM topics t
-      WHERE t.id = n.topic_id
-        AND t.planned_publish_date IS NOT NULL
-        AND ABS(EXTRACT(EPOCH FROM (n.published_at - n.created_at))) < 120
-        AND n.published_at <> t.planned_publish_date::timestamp
-    `);
-    console.log(`[Compass] Backfilled published_at (创建时间→计划发布日期) for ${fix?.count ?? 0} notes.`);
 
     // 一次性回填：历史上「复制链接」把整段小红书分享口令(真实链接夹在文案中间)存进了
     // xhs_note_url，被当成相对路径后点击会跳到首页(选题看板)。把含 http(s) 但不是以

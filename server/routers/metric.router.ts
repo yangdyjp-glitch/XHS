@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { metricSnapshots, notes, accounts } from "../../drizzle/schema.js";
 import { SNAPSHOT_DAYS } from "../../shared/enums.js";
+import { toShanghaiDateKey } from "../../shared/xhsSync.js";
 
 export const metricRouter = router({
   pendingFetches: protectedProcedure.query(async ({ ctx }) => {
@@ -24,6 +25,7 @@ export const metricRouter = router({
     }
 
     conditions.push(eq(notes.status, "live"));
+    conditions.push(isNotNull(notes.publishedAt));
 
     const allNotes = await db
       .select({
@@ -59,6 +61,7 @@ export const metricRouter = router({
     }[] = [];
 
     for (const note of allNotes) {
+      if (!note.publishedAt) continue;
       const daysSince = Math.floor(
         (now.getTime() - new Date(note.publishedAt).getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -101,20 +104,29 @@ export const metricRouter = router({
         collect: z.number().min(0),
         commentCount: z.number().min(0),
         shareCount: z.number().min(0),
+        coverClickRate: z.number().min(0).max(100).nullable().optional(),
         notes: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const [note] = await db
-        .select({ publishedAt: notes.publishedAt })
+        .select({ publishedAt: notes.publishedAt, accountId: notes.accountId })
         .from(notes)
         .where(eq(notes.id, input.noteId))
         .limit(1);
       if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "笔记不存在" });
+      if (!note.publishedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "帖子尚未同步真实发布时间" });
+      if (ctx.user.role !== "leader") {
+        const owned = await db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, ctx.user.id)))
+          .limit(1);
+        if (owned.length === 0) throw new TRPCError({ code: "FORBIDDEN", message: "无权录入该账号的数据" });
+      }
 
-      const snapshotDate = new Date(note.publishedAt);
-      snapshotDate.setDate(snapshotDate.getDate() + input.daysSincePublish);
-      const dateStr = snapshotDate.toISOString().split("T")[0];
+      const snapshotDate = new Date(new Date(note.publishedAt).getTime() + input.daysSincePublish * 86_400_000);
+      const dateStr = toShanghaiDateKey(snapshotDate);
 
       const data = {
         noteId: input.noteId,
@@ -125,6 +137,7 @@ export const metricRouter = router({
         collect: input.collect,
         commentCount: input.commentCount,
         shareCount: input.shareCount,
+        coverClickRate: input.coverClickRate ?? null,
         notes: input.notes ?? null,
         snapshotDate: dateStr,
         recordedBy: ctx.user.id,

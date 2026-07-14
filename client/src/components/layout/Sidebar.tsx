@@ -4,14 +4,12 @@ import { trpc } from "../../lib/trpc.js";
 import { cn } from "../../lib/utils.js";
 
 const NAV_COMMON = [
-  { path: "/", label: "选题看板", sub: "KANBAN" },
+  { path: "/", label: "帖子管理", sub: "POSTS" },
   { path: "/calendar", label: "发布日历", sub: "CALENDAR" },
-  { path: "/trash", label: "回收箱", sub: "TRASH" },
 ];
 
 const NAV_TEACHER = [
   { path: "/data-entry", label: "数据录入", sub: "DATA ENTRY" },
-  { path: "/auto-fetch", label: "数据抓取", sub: "AUTO FETCH" },
 ];
 
 const NAV_LEADER = [
@@ -20,13 +18,13 @@ const NAV_LEADER = [
 
 const NAV_TAIL_LEADER = [
   { path: "/reviews", label: "复盘报告", sub: "REVIEW" },
-  { path: "/recommendations", label: "下期调整", sub: "RECOMMEND" },
+  { path: "/topics", label: "选题库", sub: "KNOWLEDGE" },
   { path: "/dashboard", label: "矩阵总览", sub: "OVERVIEW" },
 ];
 
 const NAV_TAIL_TEACHER = [
   { path: "/reviews", label: "复盘报告", sub: "REVIEW" },
-  { path: "/recommendations", label: "下期调整", sub: "RECOMMEND" },
+  { path: "/topics", label: "选题库", sub: "KNOWLEDGE" },
 ];
 
 const ADMIN_ITEMS = [

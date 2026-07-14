@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { TOPIC_TYPE, TOPIC_PRIORITY, VALID_STATUS_TRANSITIONS, TOPIC_STATUS } from "@shared/enums.js";
+import { TOPIC_PRIORITY, VALID_STATUS_TRANSITIONS, TOPIC_STATUS } from "@shared/enums.js";
 import { useAuth } from "../../hooks/useAuth.js";
 
 interface Topic {
@@ -33,7 +33,9 @@ export default function TopicCard({ topic, onStatusChange }: Props) {
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
 
-  const transitions = VALID_STATUS_TRANSITIONS[topic.status] || [];
+  const transitions = (VALID_STATUS_TRANSITIONS[topic.status] || []).flatMap((rule) =>
+    rule.by === "any" || (rule.by === "leader" && isLeader) || rule.by === "teacher" ? rule.next : [],
+  );
 
   const handleAction = (newStatus: string) => {
     if (newStatus === "rejected") {
@@ -66,7 +68,7 @@ export default function TopicCard({ topic, onStatusChange }: Props) {
 
       <div className="mt-2 flex items-center gap-1 flex-wrap">
         <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-          {(TOPIC_TYPE as Record<string, string>)[topic.topicType] || topic.topicType}
+          {topic.topicType}
         </span>
         {topic.keywords?.slice(0, 2).map((k) => (
           <span key={k} className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">

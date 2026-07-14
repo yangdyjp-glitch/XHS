@@ -82,7 +82,7 @@ export interface ReviewInputData {
     topicType: string;
     keywords: string[];
     publishedAt: string;
-    metrics: { day: number; impression: number; view: number; likeCount: number; collect: number; commentCount: number; shareCount: number }[];
+    metrics: { day: number; impression: number; view: number; likeCount: number; collect: number; commentCount: number; shareCount: number; coverClickRate: number | null }[];
   }[];
   totals: { noteCount: number; totalImpression: number; totalView: number; totalLike: number; totalCollect: number; totalComment: number; totalShare: number };
 }
@@ -127,7 +127,7 @@ ${data.accounts.map(a => `- ${a.name}（${a.layer}）`).join("\n")}
 ## 发布笔记数据
 ${data.notes.map(n => {
   const bestMetric = n.metrics.length > 0 ? n.metrics[n.metrics.length - 1] : null;
-  return `- 「${n.title}」(${n.accountName}, ${n.topicType}, 关键词: ${n.keywords.join("/")})\n  发布: ${n.publishedAt}\n  ${bestMetric ? `最新数据(T+${bestMetric.day}): 曝光${bestMetric.impression} 阅读${bestMetric.view} 点赞${bestMetric.likeCount} 收藏${bestMetric.collect} 评论${bestMetric.commentCount} 分享${bestMetric.shareCount}` : "暂无数据"}`;
+  return `- 「${n.title}」(${n.accountName}, ${n.topicType}, 关键词: ${n.keywords.join("/")})\n  发布: ${n.publishedAt}\n  ${bestMetric ? `最新数据(T+${bestMetric.day}): 曝光${bestMetric.impression} 阅读${bestMetric.view} 点赞${bestMetric.likeCount} 收藏${bestMetric.collect} 评论${bestMetric.commentCount} 分享${bestMetric.shareCount} 首图点击率${bestMetric.coverClickRate == null ? "暂无" : `${bestMetric.coverClickRate.toFixed(2)}%`}` : "暂无数据"}`;
 }).join("\n")}
 
 ## 整体汇总
@@ -243,7 +243,7 @@ ${data.accounts.map(a => `- ${a.name}（${a.layer}）`).join("\n")}
 ## 各笔记表现
 ${data.notes.slice(0, 15).map(n => {
   const bestMetric = n.metrics.length > 0 ? n.metrics[n.metrics.length - 1] : null;
-  return `- 「${n.title}」(${n.topicType}, ${n.keywords.join("/")}) ${bestMetric ? `曝光${bestMetric.impression} 阅读${bestMetric.view} 互动${bestMetric.likeCount + bestMetric.collect + bestMetric.commentCount}` : "无数据"}`;
+  return `- 「${n.title}」(${n.topicType}, ${n.keywords.join("/")}) ${bestMetric ? `曝光${bestMetric.impression} 阅读${bestMetric.view} 互动${bestMetric.likeCount + bestMetric.collect + bestMetric.commentCount} 首图点击率${bestMetric.coverClickRate == null ? "暂无" : `${bestMetric.coverClickRate.toFixed(2)}%`}` : "无数据"}`;
 }).join("\n")}
 
 ${analysisResult ? `## 上期复盘分析

@@ -27,7 +27,6 @@ export const ACCOUNT_LAYER = {
 
 export const USER_ROLE = {
   teacher: "老师",
-  editor: "编辑",
   leader: "负责人",
 } as const;
 
@@ -81,8 +80,9 @@ export const PRESET_TOPIC_TYPES = [
 ] as const;
 
 export function isValidXhsNoteUrl(url: string): boolean {
-  return /xiaohongshu\.com\/(explore|discovery\/item)\/[a-f0-9]+/.test(url) ||
-    /[?&]noteId=[a-f0-9]+/.test(url);
+  return /xiaohongshu\.com\/(?:explore|note|search_result|discovery\/item)\/[a-f0-9]{24}/i.test(url) ||
+    /xiaohongshu\.com\/user\/profile\/[^/?#]+\/[a-f0-9]{24}/i.test(url) ||
+    /[?&]noteId=[a-f0-9]{24}/i.test(url);
 }
 
 export const XHS_URL_HINT = "请粘贴完整的小红书笔记链接（如 https://www.xiaohongshu.com/explore/xxx），不支持短链接（xhslink.com）";

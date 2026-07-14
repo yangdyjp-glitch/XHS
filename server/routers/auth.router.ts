@@ -10,7 +10,7 @@ import {
   clearTokenCookie,
 } from "../_core/auth.js";
 import { db } from "../db.js";
-import { users, accounts, topics, comments, calendarEvents, metricSnapshots, aiAnalysisResults, notifications, impersonationLogs } from "../../drizzle/schema.js";
+import { users, accounts, topics, notes, comments, calendarEvents, metricSnapshots, aiAnalysisResults, notifications, impersonationLogs } from "../../drizzle/schema.js";
 
 export const authRouter = router({
   login: publicProcedure
@@ -211,7 +211,7 @@ export const authRouter = router({
       z.object({
         email: z.string().min(1),
         name: z.string().min(1),
-        role: z.enum(["teacher", "editor", "leader"]),
+        role: z.enum(["teacher", "leader"]),
         initialPassword: z.string().min(6),
         mainDirections: z.array(z.string()).optional(),
       })
@@ -270,7 +270,7 @@ export const authRouter = router({
         id: z.number(),
         name: z.string().min(1).optional(),
         email: z.string().min(1).optional(),
-        role: z.enum(["teacher", "editor", "leader"]).optional(),
+        role: z.enum(["teacher", "leader"]).optional(),
         mainDirections: z.array(z.string()).optional(),
         isActive: z.boolean().optional(),
       })
@@ -304,6 +304,9 @@ export const authRouter = router({
 
       const userMetrics = await db.select({ id: metricSnapshots.id }).from(metricSnapshots).where(eq(metricSnapshots.recordedBy, input.id));
       if (userMetrics.length > 0) checks.push({ label: "条数据快照", count: userMetrics.length });
+
+      const registeredNotes = await db.select({ id: notes.id }).from(notes).where(eq(notes.registeredBy, input.id));
+      if (registeredNotes.length > 0) checks.push({ label: "篇登记帖子", count: registeredNotes.length });
 
       const userAnalyses = await db.select({ id: aiAnalysisResults.id }).from(aiAnalysisResults).where(eq(aiAnalysisResults.createdBy, input.id));
       if (userAnalyses.length > 0) checks.push({ label: "条AI分析记录", count: userAnalyses.length });

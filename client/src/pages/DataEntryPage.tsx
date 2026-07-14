@@ -9,6 +9,7 @@ const METRIC_FIELDS = [
   { key: "collect", label: "收藏" },
   { key: "commentCount", label: "评论" },
   { key: "shareCount", label: "分享" },
+  { key: "coverClickRate", label: "首图点击率 (%)", decimal: true },
 ] as const;
 
 function daysSincePublish(publishedAt: string | Date): number {
@@ -27,7 +28,7 @@ export default function DataEntryPage() {
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [form, setForm] = useState({
-    impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", notes: "",
+    impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", coverClickRate: "", notes: "",
   });
   const [saveMsg, setSaveMsg] = useState("");
   const [collapsed, setCollapsed] = useState(false);
@@ -45,7 +46,7 @@ export default function DataEntryPage() {
   });
 
   const note = notesQuery.data?.find((n) => n.id === selectedNote);
-  const availableDays = note ? getAvailableSnapshots(note.publishedAt) : [];
+  const availableDays = note?.publishedAt ? getAvailableSnapshots(note.publishedAt) : [];
   const existingSnapshot = metricsQuery.data?.find((m) => m.daysSincePublish === selectedDay);
 
   // 始终让表单反映「当前笔记 + 当前天数」已存的快照。
@@ -60,6 +61,7 @@ export default function DataEntryPage() {
         impression: String(snap.impression), view: String(snap.view),
         likeCount: String(snap.likeCount), collect: String(snap.collect),
         commentCount: String(snap.commentCount), shareCount: String(snap.shareCount ?? ""),
+        coverClickRate: String(snap.coverClickRate ?? ""),
         notes: snap.notes ?? "",
       });
     }
@@ -69,7 +71,7 @@ export default function DataEntryPage() {
     if (noteId === selectedNote) return;
     setSelectedNote(noteId);
     setSelectedDay(1);
-    setForm({ impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", notes: "" });
+    setForm({ impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", coverClickRate: "", notes: "" });
     setSaveMsg("");
     setCollapsed(false);
   };
@@ -82,10 +84,11 @@ export default function DataEntryPage() {
         impression: String(snap.impression), view: String(snap.view),
         likeCount: String(snap.likeCount), collect: String(snap.collect),
         commentCount: String(snap.commentCount), shareCount: String(snap.shareCount ?? ""),
+        coverClickRate: String(snap.coverClickRate ?? ""),
         notes: snap.notes ?? "",
       });
     } else {
-      setForm({ impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", notes: "" });
+      setForm({ impression: "", view: "", likeCount: "", collect: "", commentCount: "", shareCount: "", coverClickRate: "", notes: "" });
     }
   };
 
@@ -96,6 +99,7 @@ export default function DataEntryPage() {
       impression: parseInt(form.impression) || 0, view: parseInt(form.view) || 0,
       likeCount: parseInt(form.likeCount) || 0, collect: parseInt(form.collect) || 0,
       commentCount: parseInt(form.commentCount) || 0, shareCount: parseInt(form.shareCount) || 0,
+      coverClickRate: form.coverClickRate ? Number.parseFloat(form.coverClickRate) : null,
       notes: form.notes || undefined,
     });
   };
@@ -119,6 +123,7 @@ export default function DataEntryPage() {
               <p className="text-sm text-muted font-serif italic">暂无待录入数据的笔记</p>
             )}
             {notesQuery.data?.map((n) => {
+              if (!n.publishedAt) return null;
               const avail = getAvailableSnapshots(n.publishedAt);
               return (
                 <div
@@ -201,10 +206,12 @@ export default function DataEntryPage() {
                       <label className="eyebrow block mb-1.5">{f.label}</label>
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode={("decimal" in f && f.decimal) ? "decimal" : "numeric"}
                         value={form[f.key as keyof typeof form]}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/[^\d]/g, "");
+                          const val = ("decimal" in f && f.decimal)
+                            ? e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")
+                            : e.target.value.replace(/[^\d]/g, "");
                           setForm({ ...form, [f.key]: val });
                         }}
                         placeholder="0"

@@ -8,6 +8,10 @@ import { PRESET_TOPIC_TYPES, isValidXhsNoteUrl, XHS_URL_HINT } from "../../share
 import { extractNoteUrl } from "../../shared/url.js";
 import { suggestTitle as aiSuggestTitle } from "../services/ai.service.js";
 
+function rejectRetiredPublishingWorkflow(message: string): void {
+  throw new TRPCError({ code: "BAD_REQUEST", message });
+}
+
 export const topicRouter = router({
   list: protectedProcedure
     .input(
@@ -189,6 +193,7 @@ export const topicRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      rejectRetiredPublishingWorkflow("选题库仅作为知识参考，请到帖子管理直接上传小红书链接");
       let accountId = input.accountId;
 
       if (!accountId) {
@@ -286,6 +291,7 @@ export const topicRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      rejectRetiredPublishingWorkflow("发布计划已取消，真实发布时间由小红书后台同步");
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
 
@@ -331,6 +337,7 @@ export const topicRouter = router({
       newStatus: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
+      rejectRetiredPublishingWorkflow("审批流程已取消，请到帖子管理直接上传小红书链接");
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.id)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
 
@@ -369,6 +376,7 @@ export const topicRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      rejectRetiredPublishingWorkflow("选题不再参与发布，请到帖子管理直接上传小红书链接");
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.topicId)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
       if (topic.status === "published") {
@@ -428,6 +436,7 @@ export const topicRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      rejectRetiredPublishingWorkflow("选题不再参与发布，请到帖子管理直接上传小红书链接");
       const [topic] = await db.select().from(topics).where(eq(topics.id, input.topicId)).limit(1);
       if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
       if (topic.status !== "published") {

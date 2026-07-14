@@ -30,3 +30,32 @@ export function extractNoteUrl(raw?: string | null): string | null {
   // 3) 无法识别为链接
   return null;
 }
+
+/** 从小红书笔记链接中提取稳定的 24 位笔记 ID。 */
+export function extractXhsNoteId(raw?: string | null): string | null {
+  const url = extractNoteUrl(raw);
+  if (!url) return null;
+
+  const patterns = [
+    /\/(?:explore|note|search_result|discovery\/item)\/([a-f0-9]{24})(?:[/?#]|$)/i,
+    /\/user\/profile\/[^/?#]+\/([a-f0-9]{24})(?:[/?#]|$)/i,
+    /[?&]noteId=([a-f0-9]{24})(?:[&#]|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match?.[1]) return match[1].toLowerCase();
+  }
+  return null;
+}
+
+export function isSupportedXhsNoteUrl(raw?: string | null): boolean {
+  const url = extractNoteUrl(raw);
+  if (!url || !extractXhsNoteId(url)) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "xiaohongshu.com" || host.endsWith(".xiaohongshu.com");
+  } catch {
+    return false;
+  }
+}

@@ -1,78 +1,318 @@
 import { z } from "zod";
-import { eq, and, desc, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
+import { leaderProcedure, protectedProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
-import { notes, topics, accounts, metricSnapshots } from "../../drizzle/schema.js";
+import { accounts, metricSnapshots, notes, topics, users } from "../../drizzle/schema.js";
 import { SNAPSHOT_DAYS } from "../../shared/enums.js";
-import { extractNoteUrl } from "../../shared/url.js";
+import { extractNoteUrl, extractXhsNoteId, isSupportedXhsNoteUrl } from "../../shared/url.js";
+import { toShanghaiDateKey } from "../../shared/xhsSync.js";
+
+type CurrentUser = { id: number; role: string };
+
+async function assertAccountAccess(user: CurrentUser, accountId: number) {
+  const conditions = [eq(accounts.id, accountId)];
+  if (user.role !== "leader") conditions.push(eq(accounts.ownerId, user.id));
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(...conditions))
+    .limit(1);
+  if (!account) throw new TRPCError({ code: "FORBIDDEN", message: "无权操作该账号" });
+}
+
+async function getAccessibleAccountIds(user: CurrentUser): Promise<number[]> {
+  if (user.role === "leader") {
+    return (await db.select({ id: accounts.id }).from(accounts)).map((account) => account.id);
+  }
+  return (await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.ownerId, user.id)))
+    .map((account) => account.id);
+}
+
+async function assertNoteAccess(user: CurrentUser, noteId: number) {
+  const [note] = await db
+    .select({ id: notes.id, accountId: notes.accountId, registeredBy: notes.registeredBy })
+    .from(notes)
+    .where(eq(notes.id, noteId))
+    .limit(1);
+  if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "帖子不存在" });
+  if (user.role !== "leader") await assertAccountAccess(user, note.accountId);
+  return note;
+}
+
+function snapshotDate(publishedAt: Date, day: number) {
+  return toShanghaiDateKey(new Date(publishedAt.getTime() + day * 86_400_000));
+}
+
+const snapshotInput = z.object({
+  daysSincePublish: z.number().refine((day) => (SNAPSHOT_DAYS as readonly number[]).includes(day)),
+  impression: z.number().min(0),
+  view: z.number().min(0),
+  likeCount: z.number().min(0),
+  collect: z.number().min(0),
+  commentCount: z.number().min(0),
+  shareCount: z.number().min(0),
+  coverClickRate: z.number().min(0).max(100).nullable().optional(),
+});
 
 export const noteRouter = router({
-  listByTopic: protectedProcedure
-    .input(z.object({ topicId: z.number() }))
-    .query(async ({ input }) => {
-      const noteList = await db
-        .select()
+  registerLinks: protectedProcedure
+    .input(z.object({ accountId: z.number(), urls: z.array(z.string().min(1)).min(1).max(50) }))
+    .mutation(async ({ ctx, input }) => {
+      await assertAccountAccess(ctx.user, input.accountId);
+      const seen = new Set<string>();
+      const results: Array<{
+        raw: string;
+        status: "created" | "existing" | "invalid";
+        noteId?: number;
+        message?: string;
+      }> = [];
+
+      for (const raw of input.urls) {
+        const cleanUrl = extractNoteUrl(raw);
+        const externalNoteId = extractXhsNoteId(cleanUrl);
+        if (!cleanUrl || !externalNoteId || !isSupportedXhsNoteUrl(cleanUrl)) {
+          results.push({ raw, status: "invalid", message: "不是支持的小红书完整笔记链接" });
+          continue;
+        }
+        if (seen.has(externalNoteId)) continue;
+        seen.add(externalNoteId);
+
+        const [existing] = await db
+          .select({ id: notes.id, accountId: notes.accountId })
+          .from(notes)
+          .where(eq(notes.externalNoteId, externalNoteId))
+          .limit(1);
+        if (existing) {
+          results.push({
+            raw,
+            status: "existing",
+            noteId: existing.id,
+            message: existing.accountId === input.accountId ? "该帖子已经登记" : "该帖子已登记在其他账号下",
+          });
+          continue;
+        }
+
+        const [created] = await db
+          .insert(notes)
+          .values({
+            topicId: null,
+            accountId: input.accountId,
+            finalTitle: "待同步",
+            xhsNoteUrl: cleanUrl,
+            externalNoteId,
+            publishedAt: null,
+            registeredBy: ctx.user.id,
+            syncStatus: "pending",
+          })
+          .returning({ id: notes.id });
+        results.push({ raw, status: "created", noteId: created.id });
+      }
+
+      return {
+        results,
+        createdCount: results.filter((result) => result.status === "created").length,
+      };
+    }),
+
+  listManaged: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const accessibleIds = await getAccessibleAccountIds(ctx.user);
+      if (accessibleIds.length === 0) return [];
+      if (input?.accountId && !accessibleIds.includes(input.accountId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "无权查看该账号" });
+      }
+      const ids = input?.accountId ? [input.accountId] : accessibleIds;
+      const noteRows = await db
+        .select({
+          id: notes.id,
+          accountId: notes.accountId,
+          accountName: accounts.accountName,
+          accountColor: accounts.mainColor,
+          finalTitle: notes.finalTitle,
+          xhsNoteUrl: notes.xhsNoteUrl,
+          externalNoteId: notes.externalNoteId,
+          coverImage: notes.coverImage,
+          publishedAt: notes.publishedAt,
+          syncStatus: notes.syncStatus,
+          syncError: notes.syncError,
+          lastSyncedAt: notes.lastSyncedAt,
+          status: notes.status,
+          registeredBy: notes.registeredBy,
+          registeredByName: users.name,
+          createdAt: notes.createdAt,
+        })
         .from(notes)
-        .where(eq(notes.topicId, input.topicId))
-        .orderBy(desc(notes.publishedAt));
+        .leftJoin(accounts, eq(notes.accountId, accounts.id))
+        .leftJoin(users, eq(notes.registeredBy, users.id))
+        .where(inArray(notes.accountId, ids))
+        .orderBy(desc(notes.publishedAt), desc(notes.createdAt));
 
-      if (noteList.length === 0) return [];
-
-      const noteIds = noteList.map((n) => n.id);
+      if (noteRows.length === 0) return [];
       const allMetrics = await db
         .select()
         .from(metricSnapshots)
-        .where(inArray(metricSnapshots.noteId, noteIds))
-        .orderBy(desc(metricSnapshots.daysSincePublish));
+        .where(inArray(metricSnapshots.noteId, noteRows.map((note) => note.id)));
 
-      return noteList.map((n) => {
-        const metrics = allMetrics.filter((m) => m.noteId === n.id);
-        const latest = metrics[0] || null;
-        return { ...n, metrics, latestMetric: latest };
+      return noteRows.map((note) => {
+        const metrics = allMetrics
+          .filter((metric) => metric.noteId === note.id)
+          .sort((a, b) => a.daysSincePublish - b.daysSincePublish);
+        return { ...note, metrics, latestMetric: metrics.at(-1) ?? null };
+      });
+    }),
+
+  syncQueue: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      await assertAccountAccess(ctx.user, input.accountId);
+      const noteRows = await db
+        .select({
+          id: notes.id,
+          xhsNoteUrl: notes.xhsNoteUrl,
+          externalNoteId: notes.externalNoteId,
+          finalTitle: notes.finalTitle,
+          coverImage: notes.coverImage,
+          publishedAt: notes.publishedAt,
+          syncStatus: notes.syncStatus,
+        })
+        .from(notes)
+        .leftJoin(topics, eq(notes.topicId, topics.id))
+        .where(and(
+          eq(notes.accountId, input.accountId),
+          eq(notes.status, "live"),
+          or(isNull(notes.topicId), isNull(topics.deletedAt)),
+        ));
+      if (noteRows.length === 0) return [];
+
+      const recorded = await db
+        .select({ noteId: metricSnapshots.noteId, day: metricSnapshots.daysSincePublish })
+        .from(metricSnapshots)
+        .where(inArray(metricSnapshots.noteId, noteRows.map((note) => note.id)));
+      const recordedByNote = new Map<number, number[]>();
+      for (const item of recorded) {
+        const days = recordedByNote.get(item.noteId) ?? [];
+        days.push(item.day);
+        recordedByNote.set(item.noteId, days);
+      }
+
+      const now = Date.now();
+      return noteRows
+        .map((note) => {
+          const existingDays = recordedByNote.get(note.id) ?? [];
+          const age = note.publishedAt
+            ? Math.floor((now - new Date(note.publishedAt).getTime()) / 86_400_000)
+            : -1;
+          const missingDays = (SNAPSHOT_DAYS as readonly number[]).filter(
+            (day) => age >= day && !existingDays.includes(day),
+          );
+          return {
+            ...note,
+            existingDays,
+            missingDays,
+            needsMetadata: !note.publishedAt || note.syncStatus !== "synced" || !note.coverImage,
+          };
+        })
+        .filter((note) => note.needsMetadata || note.missingDays.length > 0);
+    }),
+
+  applySync: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().trim().min(1).max(200),
+      publishedAt: z.string().datetime(),
+      coverImage: z.string().url().optional(),
+      snapshots: z.array(snapshotInput).max(SNAPSHOT_DAYS.length),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await assertNoteAccess(ctx.user, input.id);
+      const publishedAt = new Date(input.publishedAt);
+      if (Number.isNaN(publishedAt.getTime()) || publishedAt.getTime() > Date.now() + 10 * 60_000) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "小红书返回的真实发布时间无效" });
+      }
+
+      const update: Record<string, unknown> = {
+        finalTitle: input.title.trim(),
+        publishedAt,
+        syncStatus: "synced",
+        syncError: null,
+        lastSyncedAt: new Date(),
+      };
+      if (input.coverImage) update.coverImage = input.coverImage;
+      await db.update(notes).set(update).where(eq(notes.id, input.id));
+
+      for (const snapshot of input.snapshots) {
+        const data = {
+          noteId: input.id,
+          snapshotDate: snapshotDate(publishedAt, snapshot.daysSincePublish),
+          daysSincePublish: snapshot.daysSincePublish,
+          impression: snapshot.impression,
+          view: snapshot.view,
+          likeCount: snapshot.likeCount,
+          collect: snapshot.collect,
+          commentCount: snapshot.commentCount,
+          shareCount: snapshot.shareCount,
+          coverClickRate: snapshot.coverClickRate ?? null,
+          recordedBy: ctx.user.id,
+          notes: "auto-fetch via platform",
+        };
+        const [existing] = await db
+          .select({ id: metricSnapshots.id })
+          .from(metricSnapshots)
+          .where(and(
+            eq(metricSnapshots.noteId, input.id),
+            eq(metricSnapshots.daysSincePublish, snapshot.daysSincePublish),
+          ))
+          .limit(1);
+        if (existing) await db.update(metricSnapshots).set(data).where(eq(metricSnapshots.id, existing.id));
+        else await db.insert(metricSnapshots).values(data);
+      }
+
+      return { success: true, savedSnapshots: input.snapshots.length };
+    }),
+
+  markSyncError: protectedProcedure
+    .input(z.object({ id: z.number(), message: z.string().min(1).max(1000) }))
+    .mutation(async ({ ctx, input }) => {
+      await assertNoteAccess(ctx.user, input.id);
+      await db
+        .update(notes)
+        .set({ syncStatus: "failed", syncError: input.message, lastSyncedAt: new Date() })
+        .where(eq(notes.id, input.id));
+      return { success: true };
+    }),
+
+  listByTopic: protectedProcedure
+    .input(z.object({ topicId: z.number() }))
+    .query(async ({ input }) => {
+      const noteList = await db.select().from(notes).where(eq(notes.topicId, input.topicId)).orderBy(desc(notes.publishedAt));
+      if (noteList.length === 0) return [];
+      const metrics = await db
+        .select()
+        .from(metricSnapshots)
+        .where(inArray(metricSnapshots.noteId, noteList.map((note) => note.id)));
+      return noteList.map((note) => {
+        const ownMetrics = metrics
+          .filter((metric) => metric.noteId === note.id)
+          .sort((a, b) => b.daysSincePublish - a.daysSincePublish);
+        return { ...note, metrics: ownMetrics, latestMetric: ownMetrics[0] ?? null };
       });
     }),
 
   listByAccount: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
-      return db
-        .select({
-          id: notes.id,
-          topicId: notes.topicId,
-          topicTitle: topics.title,
-          accountId: notes.accountId,
-          finalTitle: notes.finalTitle,
-          xhsNoteUrl: notes.xhsNoteUrl,
-          publishedAt: notes.publishedAt,
-          status: notes.status,
-          createdAt: notes.createdAt,
-        })
-        .from(notes)
-        .leftJoin(topics, eq(notes.topicId, topics.id))
-        .where(eq(notes.accountId, input.accountId))
-        .orderBy(desc(notes.publishedAt));
+    .query(async ({ ctx, input }) => {
+      await assertAccountAccess(ctx.user, input.accountId);
+      return db.select().from(notes).where(eq(notes.accountId, input.accountId)).orderBy(desc(notes.publishedAt));
     }),
 
   listForDataEntry: protectedProcedure.query(async ({ ctx }) => {
-    const conditions = [];
-
-    if (ctx.user.role === "teacher" || ctx.user.role === "editor") {
-      const ownAccounts = await db
-        .select({ id: accounts.id })
-        .from(accounts)
-        .where(eq(accounts.ownerId, ctx.user.id));
-      const ids = ownAccounts.map((a) => a.id);
-      if (ids.length > 0) {
-        conditions.push(inArray(notes.accountId, ids));
-      } else {
-        return [];
-      }
-    }
-
-    conditions.push(eq(notes.status, "live"));
-    conditions.push(isNull(topics.deletedAt)); // 排除选题已被删进回收箱的孤儿笔记
-
+    const ids = await getAccessibleAccountIds(ctx.user);
+    if (ids.length === 0) return [];
     const noteList = await db
       .select({
         id: notes.id,
@@ -88,122 +328,78 @@ export const noteRouter = router({
       .from(notes)
       .leftJoin(topics, eq(notes.topicId, topics.id))
       .leftJoin(accounts, eq(notes.accountId, accounts.id))
-      .where(and(...conditions))
+      .where(and(
+        inArray(notes.accountId, ids),
+        eq(notes.status, "live"),
+        isNotNull(notes.publishedAt),
+        or(isNull(notes.topicId), isNull(topics.deletedAt)),
+      ))
       .orderBy(desc(notes.publishedAt));
-
     if (noteList.length === 0) return [];
 
-    // 只保留"当前有到期但尚未录入快照"的笔记：
-    // 例如 T+1 已录入后，第 2-6 天不再出现；到第 7 天 T+7 到期才重新出现。
-    const noteIds = noteList.map((n) => n.id);
     const recorded = await db
-      .select({ noteId: metricSnapshots.noteId, daysSincePublish: metricSnapshots.daysSincePublish })
+      .select({ noteId: metricSnapshots.noteId, day: metricSnapshots.daysSincePublish })
       .from(metricSnapshots)
-      .where(inArray(metricSnapshots.noteId, noteIds));
-
+      .where(inArray(metricSnapshots.noteId, noteList.map((note) => note.id)));
     const recordedMap = new Map<number, Set<number>>();
-    for (const r of recorded) {
-      const set = recordedMap.get(r.noteId) ?? new Set<number>();
-      set.add(r.daysSincePublish);
-      recordedMap.set(r.noteId, set);
+    for (const item of recorded) {
+      const set = recordedMap.get(item.noteId) ?? new Set<number>();
+      set.add(item.day);
+      recordedMap.set(item.noteId, set);
     }
-
-    const dayMs = 1000 * 60 * 60 * 24;
     const now = Date.now();
-
-    return noteList.filter((n) => {
-      const daysSince = Math.floor((now - new Date(n.publishedAt).getTime()) / dayMs);
-      const recordedDays = recordedMap.get(n.id) ?? new Set<number>();
-      // 存在已到期(daysSince>=d)但尚未录入的快照天 → 仍需录入
-      return SNAPSHOT_DAYS.some((d) => daysSince >= d && !recordedDays.has(d));
+    return noteList.filter((note) => {
+      if (!note.publishedAt) return false;
+      const age = Math.floor((now - new Date(note.publishedAt).getTime()) / 86_400_000);
+      const days = recordedMap.get(note.id) ?? new Set<number>();
+      return SNAPSHOT_DAYS.some((day) => age >= day && !days.has(day));
     });
   }),
 
   create: protectedProcedure
-    .input(
-      z.object({
-        topicId: z.number(),
-        finalTitle: z.string().min(1),
-        xhsNoteUrl: z.string().min(1, "请填写笔记链接"),
-        publishedAt: z.string(),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const [topic] = await db
-        .select({ accountId: topics.accountId })
-        .from(topics)
-        .where(eq(topics.id, input.topicId))
-        .limit(1);
-      if (!topic) throw new Error("选题不存在");
-
+    .input(z.object({ topicId: z.number(), finalTitle: z.string().min(1), xhsNoteUrl: z.string().min(1), publishedAt: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const [topic] = await db.select({ accountId: topics.accountId }).from(topics).where(eq(topics.id, input.topicId)).limit(1);
+      if (!topic) throw new TRPCError({ code: "NOT_FOUND", message: "选题不存在" });
+      await assertAccountAccess(ctx.user, topic.accountId);
       const cleanUrl = extractNoteUrl(input.xhsNoteUrl);
-      if (!cleanUrl) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
-      }
-
-      const [note] = await db
-        .insert(notes)
-        .values({
-          topicId: input.topicId,
-          accountId: topic.accountId,
-          finalTitle: input.finalTitle,
-          xhsNoteUrl: cleanUrl,
-          publishedAt: new Date(input.publishedAt),
-        })
-        .returning();
-
+      if (!cleanUrl) throw new TRPCError({ code: "BAD_REQUEST", message: "无法识别笔记链接" });
+      const [note] = await db.insert(notes).values({
+        topicId: input.topicId,
+        accountId: topic.accountId,
+        finalTitle: input.finalTitle,
+        xhsNoteUrl: cleanUrl,
+        externalNoteId: extractXhsNoteId(cleanUrl),
+        publishedAt: new Date(input.publishedAt),
+        registeredBy: ctx.user.id,
+        syncStatus: "synced",
+      }).returning();
       return note;
     }),
 
   update: protectedProcedure
-    .input(
-      z.object({
-        id: z.number(),
-        finalTitle: z.string().min(1).optional(),
-        xhsNoteUrl: z.string().min(1).optional(),
-        status: z.enum(["live", "hidden", "deleted"]).optional(),
-      })
-    )
-    .mutation(async ({ input }) => {
+    .input(z.object({
+      id: z.number(),
+      finalTitle: z.string().min(1).optional(),
+      xhsNoteUrl: z.string().min(1).optional(),
+      status: z.enum(["live", "hidden", "deleted"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await assertNoteAccess(ctx.user, input.id);
       const { id, ...updates } = input;
-      if (updates.xhsNoteUrl !== undefined) {
+      if (updates.xhsNoteUrl) {
         const cleanUrl = extractNoteUrl(updates.xhsNoteUrl);
-        if (!cleanUrl) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "未能识别有效的笔记链接，请粘贴包含 http(s) 的小红书链接" });
-        }
+        if (!cleanUrl) throw new TRPCError({ code: "BAD_REQUEST", message: "无法识别笔记链接" });
         updates.xhsNoteUrl = cleanUrl;
       }
       await db.update(notes).set(updates).where(eq(notes.id, id));
       return { success: true };
     }),
 
-  // 删除一篇关联笔记（硬删除，含其指标快照）。每个选题至少保留一篇。
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const [note] = await db
-        .select({ id: notes.id, topicId: notes.topicId })
-        .from(notes)
-        .where(eq(notes.id, input.id))
-        .limit(1);
-      if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "笔记不存在" });
-
-      // 权限：仅负责人或选题创建者可删除
-      const [topic] = await db
-        .select({ creatorId: topics.creatorId })
-        .from(topics)
-        .where(eq(topics.id, note.topicId))
-        .limit(1);
-      if (topic && ctx.user.role !== "leader" && topic.creatorId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "没有权限删除该笔记" });
-      }
-
-      // 至少保留一篇：少于等于一篇时不允许删除
-      const siblings = await db.select({ id: notes.id }).from(notes).where(eq(notes.topicId, note.topicId));
-      if (siblings.length <= 1) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "每个选题至少保留一篇关联笔记" });
-      }
-
+      await assertNoteAccess(ctx.user, input.id);
       await db.delete(metricSnapshots).where(eq(metricSnapshots.noteId, input.id));
       await db.delete(notes).where(eq(notes.id, input.id));
       return { success: true };
@@ -212,18 +408,15 @@ export const noteRouter = router({
   listWithMetrics: leaderProcedure
     .input(z.object({ accountId: z.number().optional(), accountIds: z.array(z.number()).optional() }).optional())
     .query(async ({ input }) => {
-      const conditions = [eq(notes.status, "live"), isNull(topics.deletedAt)];
-      if (input?.accountIds && input.accountIds.length > 0) {
-        conditions.push(inArray(notes.accountId, input.accountIds));
-      } else if (input?.accountId) {
-        conditions.push(eq(notes.accountId, input.accountId));
-      }
-
-      const notesList = await db
+      const conditions = [eq(notes.status, "live"), isNotNull(notes.publishedAt)];
+      if (input?.accountIds?.length) conditions.push(inArray(notes.accountId, input.accountIds));
+      else if (input?.accountId) conditions.push(eq(notes.accountId, input.accountId));
+      const noteRows = await db
         .select({
           id: notes.id,
           finalTitle: notes.finalTitle,
           xhsNoteUrl: notes.xhsNoteUrl,
+          coverImage: notes.coverImage,
           publishedAt: notes.publishedAt,
           accountId: notes.accountId,
           accountName: accounts.accountName,
@@ -231,28 +424,18 @@ export const noteRouter = router({
         })
         .from(notes)
         .leftJoin(accounts, eq(notes.accountId, accounts.id))
-        .leftJoin(topics, eq(notes.topicId, topics.id))
         .where(and(...conditions))
         .orderBy(desc(notes.publishedAt));
-
-      const noteIds = notesList.map((n) => n.id);
-      if (noteIds.length === 0) return [];
-
+      if (noteRows.length === 0) return [];
       const metrics = await db
         .select()
         .from(metricSnapshots)
-        .where(inArray(metricSnapshots.noteId, noteIds));
-
-      const metricsMap = new Map<number, typeof metrics>();
-      for (const m of metrics) {
-        const arr = metricsMap.get(m.noteId) || [];
-        arr.push(m);
-        metricsMap.set(m.noteId, arr);
-      }
-
-      return notesList.map((n) => ({
-        ...n,
-        metrics: (metricsMap.get(n.id) || []).sort((a, b) => a.daysSincePublish - b.daysSincePublish),
+        .where(inArray(metricSnapshots.noteId, noteRows.map((note) => note.id)));
+      return noteRows.map((note) => ({
+        ...note,
+        metrics: metrics
+          .filter((metric) => metric.noteId === note.id)
+          .sort((a, b) => a.daysSincePublish - b.daysSincePublish),
       }));
     }),
 });

@@ -97,7 +97,7 @@ async function aggregateData(periodStart: string, periodEnd: string, accountIds?
     accountName: n.accountName || "",
     topicType: n.topicType || "",
     keywords: (n.keywords as string[]) || [],
-    publishedAt: new Date(n.publishedAt).toISOString().split("T")[0],
+    publishedAt: new Date(n.publishedAt!).toISOString().split("T")[0],
     metrics: allMetrics
       .filter((m) => m.noteId === n.id)
       .map((m) => ({
@@ -108,7 +108,9 @@ async function aggregateData(periodStart: string, periodEnd: string, accountIds?
         collect: m.collect,
         commentCount: m.commentCount,
         shareCount: m.shareCount || 0,
-      })),
+        coverClickRate: m.coverClickRate,
+      }))
+      .sort((a, b) => a.day - b.day),
   }));
 
   const bestMetrics = notesWithMetrics.map((n) =>

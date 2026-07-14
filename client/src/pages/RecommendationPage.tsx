@@ -5,7 +5,6 @@ import { useReviewScope } from "../hooks/useReviewScope.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import { BANNED_WORDS } from "@shared/bannedWords.js";
 import { normalizeRecommendationLabels } from "@shared/recommendationLabels.js";
-import TopicCreateDialog from "../components/topic/TopicCreateDialog.js";
 
 const PRIORITY_LABEL: Record<string, string> = { high: "高", normal: "普通", low: "低" };
 const PRIORITY_STYLE: Record<string, string> = {
@@ -39,7 +38,7 @@ const CATEGORY_STYLE: Record<string, string> = {
 };
 
 export default function RecommendationPage() {
-  const { isLeader, isTeacher, selectedAccountId } = useAuth();
+  const { isTeacher, selectedAccountId } = useAuth();
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
@@ -47,7 +46,6 @@ export default function RecommendationPage() {
   const [eventForm, setEventForm] = useState({ title: "", eventDate: "", category: "other" });
   const [localRecs, setLocalRecs] = useState<any[] | null>(null);
   const [refreshingTitles, setRefreshingTitles] = useState<Set<string>>(new Set());
-  const [useSeed, setUseSeed] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
   // 范围标签逻辑与「复盘报告」页共用，确保下拉里的账号简称口径一致。
@@ -175,7 +173,8 @@ export default function RecommendationPage() {
         <div className="flex items-end justify-between mb-3">
           <div>
             <p className="eyebrow mb-1">RECOMMEND</p>
-            <h1 className="editorial-heading text-[28px] leading-tight">下期调整</h1>
+            <h1 className="editorial-heading text-[28px] leading-tight">选题库</h1>
+            <p className="text-sm text-muted mt-1">选题建议仅作为知识参考，不参与帖子发布流程。</p>
           </div>
           <div className="flex items-center gap-3">
             {reviewsQuery.data && reviewsQuery.data.length > 0 && (
@@ -359,12 +358,6 @@ export default function RecommendationPage() {
                       className="px-3 py-1.5 text-sm rounded-full border border-hairline text-ink-soft hover:bg-paper-alt disabled:opacity-50 transition-colors">
                       {refreshingTitles.has(rec.title) ? "刷新中..." : "刷新"}
                     </button>
-                    {!isLeader && (
-                      <button onClick={() => setUseSeed(rec)}
-                        className="px-3 py-1.5 text-sm rounded-full bg-ink text-card hover:bg-ink-soft transition-colors">
-                        使用
-                      </button>
-                    )}
                     <button onClick={() => handleRejectRec(rec)}
                       disabled={rejectRecMutation.isPending}
                       className="px-3 py-1.5 text-sm rounded-full border border-hairline text-[#991B1B] hover:bg-[#FEE2E2] disabled:opacity-50 transition-colors">
@@ -391,15 +384,6 @@ export default function RecommendationPage() {
         </div>
       )}
 
-      {useSeed && (
-        <TopicCreateDialog
-          initialTitle={useSeed.title}
-          initialTopicType={useSeed.topicType}
-          initialKeywords={useSeed.keywords || []}
-          onClose={() => setUseSeed(null)}
-          onCreated={() => setUseSeed(null)}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc.js";
-import { ACCOUNT_LAYER, TOPIC_STATUS } from "@shared/enums.js";
+import { ACCOUNT_LAYER } from "@shared/enums.js";
 import Dropdown from "../components/ui/Dropdown.js";
 import AccountFilter from "../components/ui/AccountFilter.js";
 import NoteLink from "../components/ui/NoteLink.js";
@@ -33,7 +33,7 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
       <div className="flex-1 min-w-0">
         <div className="text-sm text-ink font-medium truncate">{n.title}</div>
         <div className="mono-data text-muted mt-0.5">
-          {n.accountName} · {n.creatorName} · {n.topicType}
+          {n.accountName} · 上传人 {n.creatorName || "未知"}
         </div>
       </div>
       <div className="flex items-center gap-3 shrink-0 font-mono text-xs">
@@ -43,6 +43,7 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
         <span><span className="text-[#D97706]">{n.collect}</span> <span className="text-muted">藏</span></span>
         <span><span className="text-[#7C3AED]">{n.commentCount}</span> <span className="text-muted">评</span></span>
         <span><span className="text-[#0891B2]">{(n.shareCount ?? 0)}</span> <span className="text-muted">转</span></span>
+        {n.coverClickRate != null && <span><span className="text-accent">{n.coverClickRate.toFixed(2)}%</span> <span className="text-muted">首图</span></span>}
       </div>
       <NoteLink raw={n.xhsNoteUrl}
         className="shrink-0 text-[11px] font-mono bg-ink text-card px-2.5 py-1 rounded-full hover:bg-ink-soft transition-colors"
@@ -53,7 +54,6 @@ function NoteRankRow({ n, rank }: { n: any; rank: number }) {
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>("30");
-  const [typeFilter, setTypeFilter] = useState<string>("");
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]); // 空 = 全部账号
 
   const dashQuery = trpc.dashboard.overview.useQuery({ period }, { refetchOnWindowFocus: false });
@@ -89,15 +89,6 @@ export default function DashboardPage() {
         totalComment: shownAccounts.reduce((s, a) => s + a.totalComment, 0),
       }
     : totals;
-
-  // 选题进度也跟随账号筛选：选中账号时合计这些账号的各状态选题数，否则用全矩阵
-  const statusMap: Record<string, number> = selectedAccounts.length > 0
-    ? shownAccounts.reduce((acc, a) => {
-        const m = a.topicsByStatus || {};
-        for (const k of Object.keys(m)) acc[k] = (acc[k] || 0) + m[k];
-        return acc;
-      }, {} as Record<string, number>)
-    : (totals.topicsByStatus as Record<string, number>);
 
   const kpiItems = [
     { eyebrow: "活跃账号", value: displayTotals.totalAccounts, unit: "个", color: "" },
@@ -152,21 +143,6 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Topic Pipeline */}
-      <div>
-        <p className="eyebrow mb-3">选题进度</p>
-        <div className="card-surface px-6 py-5">
-          <div className="flex gap-6 flex-wrap">
-            {Object.entries(TOPIC_STATUS).map(([key, label]) => (
-              <div key={key} className="flex items-baseline gap-2">
-                <span className="kpi-value text-2xl">{statusMap[key] || 0}</span>
-                <span className="text-sm text-muted">{label}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -250,77 +226,9 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* By Type */}
+            {/* By Uploader */}
             <div className="card-surface p-5 lg:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <p className="eyebrow">按类型</p>
-                {rankings.byType.length > 0 && (
-                  <Dropdown
-                    value={typeFilter}
-                    onChange={setTypeFilter}
-                    className="w-36"
-                    options={[
-                      { value: "", label: "全部类型" },
-                      ...rankings.byType.map((t) => ({ value: t.type, label: `${t.type} (${t.count}篇)` })),
-                    ]}
-                  />
-                )}
-              </div>
-              {rankings.byType.length === 0 ? (
-                <p className="text-sm text-muted">暂无数据</p>
-              ) : (
-                <div className="space-y-5">
-                  {rankings.byType
-                    .filter((t) => !typeFilter || t.type === typeFilter)
-                    .map((t) => (
-                    <div key={t.type}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-serif font-bold text-ink text-sm">{t.type}</span>
-                        <span className="status-pill bg-[#DBEAFE] text-accent">{t.count}篇</span>
-                      </div>
-                      {t.top3.map((n, i) => <NoteRankRow key={n.noteId} n={n} rank={i + 1} />)}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Type x Teacher */}
-            <div className="card-surface p-5 lg:p-6">
-              <p className="eyebrow mb-4">类型 × 老师</p>
-              {rankings.byTypeTeacher.length === 0 ? (
-                <p className="text-sm text-muted">暂无数据</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-ink">
-                      <th className="eyebrow text-left py-2.5 pr-4">类型</th>
-                      <th className="eyebrow text-left py-2.5">分布</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rankings.byTypeTeacher.map((t) => (
-                      <tr key={t.type} className="border-b border-hairline">
-                        <td className="py-3 pr-4 font-serif font-bold text-ink">{t.type}</td>
-                        <td className="py-3">
-                          <div className="flex gap-4 flex-wrap">
-                            {t.teachers.map((tc) => (
-                              <span key={tc.name} className="text-muted text-xs">
-                                {tc.name} <span className="font-mono font-medium text-ink">{tc.count}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* By Teacher */}
-            <div className="card-surface p-5 lg:p-6">
-              <p className="eyebrow mb-4">按老师 · TOP 3</p>
+              <p className="eyebrow mb-4">按上传人 · TOP 3</p>
               {rankings.byTeacher.length === 0 ? (
                 <p className="text-sm text-muted">暂无数据</p>
               ) : (
