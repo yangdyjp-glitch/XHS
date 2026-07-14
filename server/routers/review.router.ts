@@ -52,7 +52,8 @@ function resolveReviewAccountIds(review: { accountIds: number[] | null; accountI
 
 async function aggregateData(periodStart: string, periodEnd: string, accountIds?: number[]): Promise<ReviewInputData> {
   const hasFilter = Array.isArray(accountIds) && accountIds.length > 0;
-  const accountConditions = hasFilter ? [inArray(accounts.id, accountIds!)] : [];
+  const accountConditions = [eq(accounts.status, "active")];
+  if (hasFilter) accountConditions.push(inArray(accounts.id, accountIds!));
   const accts = await db
     .select({ id: accounts.id, name: accounts.accountName, layer: accounts.layer })
     .from(accounts)
@@ -62,6 +63,7 @@ async function aggregateData(periodStart: string, periodEnd: string, accountIds?
     gte(notes.publishedAt, new Date(periodStart)),
     lte(notes.publishedAt, new Date(periodEnd + "T23:59:59Z")),
     eq(notes.status, "live"),   // 只统计在线笔记，排除隐藏/删除状态
+    eq(accounts.status, "active"),
     isNull(topics.deletedAt),   // 排除已移入回收箱的选题对应的笔记
   ];
   if (hasFilter) noteConditions.push(inArray(notes.accountId, accountIds!));

@@ -45,7 +45,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   // Query selected account name for teachers
   const accountsQuery = trpc.account.listByOwner.useQuery(undefined, {
     enabled: isTeacher,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const selectedAccount = accountsQuery.data?.find((a) => a.id === selectedAccountId);
   const hasMultipleAccounts = (accountsQuery.data?.length || 0) > 1;

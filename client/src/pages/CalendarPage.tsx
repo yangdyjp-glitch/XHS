@@ -24,7 +24,7 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(now.getMonth());
   const postsQuery = trpc.note.listManaged.useQuery(
     { accountId: isTeacher ? (selectedAccountId || undefined) : undefined },
-    { refetchOnWindowFocus: false },
+    { staleTime: 0, refetchOnWindowFocus: true },
   );
 
   const byDate = useMemo(() => {

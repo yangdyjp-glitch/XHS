@@ -50,8 +50,24 @@ function usePrefetchData() {
 }
 
 function AppRoutes() {
-  const { user, isLoading, isTeacher, selectedAccountId } = useAuth();
+  const { user, isLoading, isTeacher, selectedAccountId, setSelectedAccountId } = useAuth();
   const [location] = useLocation();
+  const activeOwnerAccountsQuery = trpc.account.listByOwner.useQuery(undefined, {
+    enabled: Boolean(user) && Boolean(isTeacher),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
+  });
+
+  const selectedAccountIsActive = !selectedAccountId
+    || !activeOwnerAccountsQuery.isSuccess
+    || activeOwnerAccountsQuery.data?.some((account) => account.id === selectedAccountId) === true;
+
+  useEffect(() => {
+    if (isTeacher && selectedAccountId && activeOwnerAccountsQuery.isSuccess && !selectedAccountIsActive) {
+      setSelectedAccountId(null);
+    }
+  }, [activeOwnerAccountsQuery.isSuccess, isTeacher, selectedAccountId, selectedAccountIsActive, setSelectedAccountId]);
 
   if (isLoading) {
     return (
@@ -68,7 +84,9 @@ function AppRoutes() {
   let content: ReactNode;
   if (user.mustChangePassword) {
     content = <ChangePasswordPage />;
-  } else if (isTeacher && !selectedAccountId) {
+  } else if (isTeacher && selectedAccountId && activeOwnerAccountsQuery.isPending) {
+    content = <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-400">正在确认账号状态...</div>;
+  } else if (isTeacher && (!selectedAccountId || !selectedAccountIsActive)) {
     // Teachers must select an account before entering the app
     content = <AccountSelectPage />;
   } else {

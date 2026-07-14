@@ -70,6 +70,7 @@ function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (
 }
 
 export default function AccountsPage() {
+  const utils = trpc.useUtils();
   const { data: accounts, refetch } = trpc.account.list.useQuery();
   const { data: usersList } = trpc.auth.listUsers.useQuery();
   const createAccount = trpc.account.create.useMutation({
@@ -80,7 +81,18 @@ export default function AccountsPage() {
     },
   });
   const updateAccount = trpc.account.update.useMutation({
-    onSuccess: () => { refetch(); setEditing(null); },
+    onSuccess: async () => {
+      await Promise.all([
+        refetch(),
+        utils.account.listActive.invalidate(),
+        utils.account.listByOwner.invalidate(),
+        utils.note.invalidate(),
+        utils.metric.invalidate(),
+        utils.dashboard.invalidate(),
+        utils.review.invalidate(),
+      ]);
+      setEditing(null);
+    },
   });
   const deleteAccount = trpc.account.delete.useMutation({
     onSuccess: () => refetch(),

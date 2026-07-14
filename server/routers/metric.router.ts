@@ -15,7 +15,7 @@ export const metricRouter = router({
       const ownAccounts = await db
         .select({ id: accounts.id })
         .from(accounts)
-        .where(eq(accounts.ownerId, ctx.user.id));
+        .where(and(eq(accounts.ownerId, ctx.user.id), eq(accounts.status, "active")));
       const ids = ownAccounts.map((a) => a.id);
       if (ids.length > 0) {
         conditions.push(inArray(notes.accountId, ids));
@@ -26,6 +26,7 @@ export const metricRouter = router({
 
     conditions.push(eq(notes.status, "live"));
     conditions.push(isNotNull(notes.publishedAt));
+    conditions.push(eq(accounts.status, "active"));
 
     const allNotes = await db
       .select({
@@ -110,17 +111,19 @@ export const metricRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const [note] = await db
-        .select({ publishedAt: notes.publishedAt, accountId: notes.accountId })
+        .select({ publishedAt: notes.publishedAt, accountId: notes.accountId, accountStatus: accounts.status })
         .from(notes)
+        .leftJoin(accounts, eq(notes.accountId, accounts.id))
         .where(eq(notes.id, input.noteId))
         .limit(1);
       if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "笔记不存在" });
+      if (note.accountStatus !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "该账号已暂停或归档" });
       if (!note.publishedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "帖子尚未同步真实发布时间" });
       if (ctx.user.role !== "leader") {
         const owned = await db
           .select({ id: accounts.id })
           .from(accounts)
-          .where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, ctx.user.id)))
+          .where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, ctx.user.id), eq(accounts.status, "active")))
           .limit(1);
         if (owned.length === 0) throw new TRPCError({ code: "FORBIDDEN", message: "无权录入该账号的数据" });
       }

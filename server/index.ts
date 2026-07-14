@@ -145,13 +145,14 @@ app.get("/api/metric/pending", async (req, res) => {
 
     const conditions = [];
     if (user.role === "teacher" || user.role === "editor") {
-      const ownAccounts = await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.ownerId, user.id));
+      const ownAccounts = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.ownerId, user.id), eq(accounts.status, "active")));
       const ids = ownAccounts.map((a: any) => a.id);
       if (ids.length > 0) conditions.push(inArray(notes.accountId, ids));
       else { res.json([]); return; }
     }
     conditions.push(eq(notes.status, "live"));
     conditions.push(isNotNull(notes.publishedAt));
+    conditions.push(eq(accounts.status, "active"));
     const allNotes = await db.select({ id: notes.id, xhsNoteUrl: notes.xhsNoteUrl, publishedAt: notes.publishedAt, finalTitle: notes.finalTitle, accountName: accounts.accountName })
       .from(notes).leftJoin(accounts, eq(notes.accountId, accounts.id)).where(and(...conditions));
     const allSnaps = await db.select({ noteId: metricSnapshots.noteId, daysSincePublish: metricSnapshots.daysSincePublish }).from(metricSnapshots);
@@ -184,11 +185,12 @@ app.post("/api/metric/upsert", async (req, res) => {
     if (!(SNAPSHOT_DAYS as readonly number[]).includes(input.daysSincePublish)) { res.status(400).json({ error: "Invalid daysSincePublish" }); return; }
     const [currentUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, payload.userId)).limit(1);
     if (!currentUser) { res.status(401).json({ error: "User no longer exists" }); return; }
-    const [note] = await db.select({ publishedAt: notes.publishedAt, accountId: notes.accountId }).from(notes).where(eq(notes.id, input.noteId)).limit(1);
+    const [note] = await db.select({ publishedAt: notes.publishedAt, accountId: notes.accountId, accountStatus: accounts.status }).from(notes).leftJoin(accounts, eq(notes.accountId, accounts.id)).where(eq(notes.id, input.noteId)).limit(1);
     if (!note) { res.status(404).json({ error: "Note not found" }); return; }
+    if (note.accountStatus !== "active") { res.status(400).json({ error: "Account is paused or archived" }); return; }
     if (!note.publishedAt) { res.status(400).json({ error: "Note publish time has not been synced" }); return; }
     if (currentUser.role !== "leader") {
-      const [ownedAccount] = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, payload.userId))).limit(1);
+      const [ownedAccount] = await db.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.id, note.accountId), eq(accounts.ownerId, payload.userId), eq(accounts.status, "active"))).limit(1);
       if (!ownedAccount) { res.status(403).json({ error: "Forbidden" }); return; }
     }
     const snapshotDate = new Date(new Date(note.publishedAt).getTime() + input.daysSincePublish * 86_400_000);

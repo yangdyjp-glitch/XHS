@@ -11,7 +11,7 @@ import { toShanghaiDateKey } from "../../shared/xhsSync.js";
 type CurrentUser = { id: number; role: string };
 
 async function assertAccountAccess(user: CurrentUser, accountId: number) {
-  const conditions = [eq(accounts.id, accountId)];
+  const conditions = [eq(accounts.id, accountId), eq(accounts.status, "active")];
   if (user.role !== "leader") conditions.push(eq(accounts.ownerId, user.id));
   const [account] = await db
     .select({ id: accounts.id })
@@ -23,12 +23,16 @@ async function assertAccountAccess(user: CurrentUser, accountId: number) {
 
 async function getAccessibleAccountIds(user: CurrentUser): Promise<number[]> {
   if (user.role === "leader") {
-    return (await db.select({ id: accounts.id }).from(accounts)).map((account) => account.id);
+    return (await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.status, "active")))
+      .map((account) => account.id);
   }
   return (await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(eq(accounts.ownerId, user.id)))
+    .where(and(eq(accounts.ownerId, user.id), eq(accounts.status, "active"))))
     .map((account) => account.id);
 }
 
@@ -408,7 +412,7 @@ export const noteRouter = router({
   listWithMetrics: leaderProcedure
     .input(z.object({ accountId: z.number().optional(), accountIds: z.array(z.number()).optional() }).optional())
     .query(async ({ input }) => {
-      const conditions = [eq(notes.status, "live"), isNotNull(notes.publishedAt)];
+      const conditions = [eq(notes.status, "live"), isNotNull(notes.publishedAt), eq(accounts.status, "active")];
       if (input?.accountIds?.length) conditions.push(inArray(notes.accountId, input.accountIds));
       else if (input?.accountId) conditions.push(eq(notes.accountId, input.accountId));
       const noteRows = await db

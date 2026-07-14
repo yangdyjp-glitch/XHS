@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc.js";
 import { ACCOUNT_LAYER } from "@shared/enums.js";
 import Dropdown from "../components/ui/Dropdown.js";
@@ -56,15 +56,24 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>("30");
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]); // 空 = 全部账号
 
-  const dashQuery = trpc.dashboard.overview.useQuery({ period }, { refetchOnWindowFocus: false });
+  const dashQuery = trpc.dashboard.overview.useQuery({ period }, { staleTime: 0, refetchOnWindowFocus: true });
   const rankingsQuery = trpc.dashboard.rankings.useQuery(
     { period, accountIds: selectedAccounts.length > 0 ? selectedAccounts : undefined },
-    { refetchOnWindowFocus: false }
+    { staleTime: 0, refetchOnWindowFocus: true }
   );
 
   const data = dashQuery.data;
   const rankings = rankingsQuery.data;
   const selectedPeriod = PERIOD_OPTIONS.find((p) => p.value === period) || PERIOD_OPTIONS[2];
+
+  useEffect(() => {
+    if (!data) return;
+    const activeIds = new Set(data.accounts.map((account) => account.id));
+    setSelectedAccounts((current) => {
+      const next = current.filter((id) => activeIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [data]);
 
   if (dashQuery.isLoading) {
     return <div className="text-muted text-center py-20 font-serif text-lg">加载中...</div>;

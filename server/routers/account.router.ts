@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { protectedProcedure, leaderProcedure, router } from "../_core/trpc.js";
 import { db } from "../db.js";
 import { accounts, users, topics, notes } from "../../drizzle/schema.js";
@@ -16,7 +16,30 @@ export const accountRouter = router({
         status: accounts.status,
       })
       .from(accounts)
-      .where(eq(accounts.ownerId, ctx.user.id))
+      .where(and(eq(accounts.ownerId, ctx.user.id), eq(accounts.status, "active")))
+      .orderBy(accounts.createdAt);
+  }),
+
+  // Business selectors only expose active accounts. Paused/archived accounts remain in `list` for administration.
+  listActive: protectedProcedure.query(async ({ ctx }) => {
+    const conditions = [eq(accounts.status, "active")];
+    if (ctx.user.role !== "leader") conditions.push(eq(accounts.ownerId, ctx.user.id));
+    return db
+      .select({
+        id: accounts.id,
+        accountName: accounts.accountName,
+        ownerId: accounts.ownerId,
+        ownerName: users.name,
+        layer: accounts.layer,
+        mainColor: accounts.mainColor,
+        xhsAccountUrl: accounts.xhsAccountUrl,
+        weeklyTarget: accounts.weeklyTarget,
+        status: accounts.status,
+        createdAt: accounts.createdAt,
+      })
+      .from(accounts)
+      .leftJoin(users, eq(accounts.ownerId, users.id))
+      .where(and(...conditions))
       .orderBy(accounts.createdAt);
   }),
 

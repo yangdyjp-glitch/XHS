@@ -24,7 +24,7 @@ function getAvailableSnapshots(publishedAt: string | Date): number[] {
 }
 
 export default function DataEntryPage() {
-  const notesQuery = trpc.note.listForDataEntry.useQuery(undefined, { refetchOnWindowFocus: false });
+  const notesQuery = trpc.note.listForDataEntry.useQuery(undefined, { staleTime: 0, refetchOnWindowFocus: true });
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [form, setForm] = useState({

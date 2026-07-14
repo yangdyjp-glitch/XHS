@@ -17,13 +17,15 @@ export interface ReviewScopeFields {
 export function useReviewScope() {
   const { isLeader } = useAuth();
 
-  const leaderAccountsQuery = trpc.account.list.useQuery(undefined, {
+  const leaderAccountsQuery = trpc.account.listActive.useQuery(undefined, {
     enabled: isLeader,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const ownerAccountsQuery = trpc.account.listByOwner.useQuery(undefined, {
     enabled: !isLeader,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
   const accountOptions = (isLeader ? leaderAccountsQuery.data : ownerAccountsQuery.data) || [];
 

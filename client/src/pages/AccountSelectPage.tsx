@@ -11,7 +11,8 @@ export default function AccountSelectPage() {
     navigate("/");
   };
   const accountsQuery = trpc.account.listByOwner.useQuery(undefined, {
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const accounts = accountsQuery.data || [];

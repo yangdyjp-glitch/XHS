@@ -35,7 +35,7 @@ async function uploadCover(cover?: { mimeType?: string; base64?: string } | null
 export default function PostsPage() {
   const { isTeacher, selectedAccountId } = useAuth();
   const utils = trpc.useUtils();
-  const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
+  const accountsQuery = trpc.account.listActive.useQuery(undefined, { staleTime: 0, refetchOnWindowFocus: true });
   const [leaderAccountId, setLeaderAccountId] = useState<number | null>(null);
   const accountId = isTeacher ? selectedAccountId : leaderAccountId;
   const [links, setLinks] = useState("");
@@ -46,14 +46,15 @@ export default function PostsPage() {
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    if (!isTeacher && !leaderAccountId && accountsQuery.data?.[0]) {
-      setLeaderAccountId(accountsQuery.data[0].id);
-    }
+    if (isTeacher || !accountsQuery.data) return;
+    const isCurrentActive = leaderAccountId != null
+      && accountsQuery.data.some((account) => account.id === leaderAccountId);
+    if (!isCurrentActive) setLeaderAccountId(accountsQuery.data[0]?.id ?? null);
   }, [accountsQuery.data, isTeacher, leaderAccountId]);
 
   const postsQuery = trpc.note.listManaged.useQuery(
     { accountId: accountId || undefined },
-    { enabled: Boolean(accountId), refetchOnWindowFocus: false },
+    { enabled: Boolean(accountId), staleTime: 0, refetchOnWindowFocus: true },
   );
   const registerMutation = trpc.note.registerLinks.useMutation();
   const applySyncMutation = trpc.note.applySync.useMutation();

@@ -105,10 +105,18 @@ export default function DataOverviewPage() {
         ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
         : { key, dir: key === "age" || key === "account" ? "asc" : "desc" } // 数值列默认从高到低
     );
-  const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
+  const accountsQuery = trpc.account.listActive.useQuery(undefined, { staleTime: 0, refetchOnWindowFocus: true });
+  useEffect(() => {
+    if (!accountsQuery.data) return;
+    const activeIds = new Set(accountsQuery.data.map((account) => account.id));
+    setFilterAccounts((current) => {
+      const next = current.filter((id) => activeIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [accountsQuery.data]);
   const notesQuery = trpc.note.listWithMetrics.useQuery(
     { accountIds: filterAccounts.length > 0 ? filterAccounts : undefined },
-    { refetchOnWindowFocus: false }
+    { staleTime: 0, refetchOnWindowFocus: true }
   );
 
   const filteredNotes = useMemo(() => {

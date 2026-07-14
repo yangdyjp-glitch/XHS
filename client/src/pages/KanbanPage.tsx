@@ -64,7 +64,7 @@ export default function KanbanPage() {
     },
     { refetchOnWindowFocus: false }
   );
-  const accountsQuery = trpc.account.list.useQuery(undefined, { refetchOnWindowFocus: false });
+  const accountsQuery = trpc.account.listActive.useQuery(undefined, { refetchOnWindowFocus: false });
   const statusMutation = trpc.topic.updateStatus.useMutation({
     onSuccess: () => topicsQuery.refetch(),
   });

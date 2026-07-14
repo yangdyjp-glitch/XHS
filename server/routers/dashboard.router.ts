@@ -46,7 +46,7 @@ function getPeriodTarget(weeklyTarget: number | null, period: DashboardPeriod) {
 }
 
 async function fetchAllNotesWithScores(since?: Date, accountIds?: number[]): Promise<NoteWithScore[]> {
-  const conditions = [eq(notes.status, "live"), isNotNull(notes.publishedAt)];
+  const conditions = [eq(notes.status, "live"), isNotNull(notes.publishedAt), eq(accounts.status, "active")];
   if (since) conditions.push(gte(notes.publishedAt, since));
   if (accountIds && accountIds.length > 0) conditions.push(inArray(notes.accountId, accountIds));
 

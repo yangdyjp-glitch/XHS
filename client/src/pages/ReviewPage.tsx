@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { trpc } from "../lib/trpc.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { useReviewScope } from "../hooks/useReviewScope.js";
@@ -57,6 +57,14 @@ export default function ReviewPage() {
   // 账号选项 + 范围标签逻辑与「下期调整」页共用（见 useReviewScope），口径保持一致。
   // 负责人可在全部账号中多选；老师只在自己名下账号中多选。空选 = 全矩阵。
   const { accountOptions, accountNameMap, scopeLabel, resolveIds } = useReviewScope();
+
+  useEffect(() => {
+    const activeIds = new Set(accountOptions.map((account) => account.id));
+    setSelectedAccounts((current) => {
+      const next = current.filter((id) => activeIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [accountOptions]);
 
   const weeks = useMemo(() => getRecentWeeks(), []);
   const months = useMemo(() => getRecentMonths(), []);
