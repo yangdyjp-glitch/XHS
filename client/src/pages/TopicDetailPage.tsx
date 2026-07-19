@@ -298,7 +298,7 @@ export default function TopicDetailPage() {
             {noteFormError && <div className="text-sm text-[#991B1B] bg-[#FEE2E2] px-3 py-2">{noteFormError}</div>}
             <input value={noteForm.finalTitle} onChange={(e) => setNoteForm({ ...noteForm, finalTitle: e.target.value })} placeholder="笔记标题" className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
             <div>
-              <input value={noteForm.xhsNoteUrl} onChange={(e) => setNoteForm({ ...noteForm, xhsNoteUrl: e.target.value })} placeholder="https://www.xiaohongshu.com/explore/..." className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
+              <input value={noteForm.xhsNoteUrl} onChange={(e) => setNoteForm({ ...noteForm, xhsNoteUrl: e.target.value })} placeholder="https://www.xiaohongshu.com/explore/... 或 https://www.rednote.com/explore/..." className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
               <p className="text-xs text-muted mt-0.5">请粘贴完整链接，不支持 xhslink.com 短链接</p>
             </div>
             <input type="datetime-local" value={noteForm.publishedAt} onChange={(e) => setNoteForm({ ...noteForm, publishedAt: e.target.value })} className="w-full border border-hairline bg-card px-3 py-1.5 text-sm focus:outline-none focus:border-accent" />
@@ -331,7 +331,7 @@ export default function TopicDetailPage() {
                           <input
                             value={editingUrlValue}
                             onChange={(e) => setEditingUrlValue(e.target.value)}
-                            placeholder="https://www.xiaohongshu.com/explore/..."
+                            placeholder="https://www.xiaohongshu.com/explore/... 或 https://www.rednote.com/explore/..."
                             className="flex-1 border border-hairline bg-card px-2 py-1 text-xs focus:outline-none focus:border-accent"
                           />
                           <button onClick={() => handleFixUrl(note.id)} disabled={updateNoteMutation.isPending} className="text-xs bg-[#166534] text-white px-3 py-1 rounded-full hover:bg-[#15803D] disabled:opacity-50">

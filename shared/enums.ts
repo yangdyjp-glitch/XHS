@@ -1,3 +1,5 @@
+import { isSupportedXhsNoteUrl } from "./url.js";
+
 export const TOPIC_STATUS = {
   pending_review: "待审批",
   approved: "已通过",
@@ -80,9 +82,7 @@ export const PRESET_TOPIC_TYPES = [
 ] as const;
 
 export function isValidXhsNoteUrl(url: string): boolean {
-  return /xiaohongshu\.com\/(?:explore|note|search_result|discovery\/item)\/[a-f0-9]{24}/i.test(url) ||
-    /xiaohongshu\.com\/user\/profile\/[^/?#]+\/[a-f0-9]{24}/i.test(url) ||
-    /[?&]noteId=[a-f0-9]{24}/i.test(url);
+  return isSupportedXhsNoteUrl(url);
 }
 
-export const XHS_URL_HINT = "请粘贴完整的小红书笔记链接（如 https://www.xiaohongshu.com/explore/xxx），不支持短链接（xhslink.com）";
+export const XHS_URL_HINT = "请粘贴完整的小红书笔记链接（支持 xiaohongshu.com 和 rednote.com），不支持短链接（xhslink.com）";

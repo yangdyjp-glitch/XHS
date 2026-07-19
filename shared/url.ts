@@ -54,7 +54,8 @@ export function isSupportedXhsNoteUrl(raw?: string | null): boolean {
   if (!url || !extractXhsNoteId(url)) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
-    return host === "xiaohongshu.com" || host.endsWith(".xiaohongshu.com");
+    return host === "xiaohongshu.com" || host.endsWith(".xiaohongshu.com") ||
+      host === "rednote.com" || host.endsWith(".rednote.com");
   } catch {
     return false;
   }

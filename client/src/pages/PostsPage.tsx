@@ -232,13 +232,13 @@ export default function PostsPage() {
           <div>
             <p className="eyebrow mb-1">批量登记</p>
             <h2 className="font-serif font-bold text-lg text-ink">粘贴小红书帖子链接</h2>
-            <p className="text-sm text-muted mt-1">支持一次粘贴多个链接。保存后自动同步首图、真实发布时间和所有已到期快照。</p>
+            <p className="text-sm text-muted mt-1">支持 xiaohongshu.com 和 rednote.com，可一次粘贴多个链接。保存后自动同步首图、真实发布时间和所有已到期快照。</p>
           </div>
           <textarea
             value={links}
             onChange={(event) => setLinks(event.target.value)}
             rows={6}
-            placeholder={"https://www.xiaohongshu.com/explore/...\nhttps://www.xiaohongshu.com/explore/..."}
+            placeholder={"https://www.xiaohongshu.com/explore/...\nhttps://www.rednote.com/explore/..."}
             className="w-full border border-hairline bg-paper px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-accent resize-y"
           />
           <div className="flex items-center gap-3 flex-wrap">

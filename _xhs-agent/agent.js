@@ -75,11 +75,20 @@ function findFirstImage(dir) {
 }
 
 function readCover(noteUrl, noteId) {
-  if (!noteUrl || !/^https?:\/\/(?:[^/]+\.)?xiaohongshu\.com\//i.test(noteUrl)) return null;
+  if (!noteUrl) return null;
+  let adapter;
+  try {
+    const host = new URL(noteUrl).hostname.toLowerCase();
+    if (host === "xiaohongshu.com" || host.endsWith(".xiaohongshu.com")) adapter = "xiaohongshu";
+    else if (host === "rednote.com" || host.endsWith(".rednote.com")) adapter = "rednote";
+    else return null;
+  } catch {
+    return null;
+  }
   const outputDir = path.join(os.tmpdir(), `xhs-cover-${process.pid}-${Date.now()}`);
   try {
     fs.mkdirSync(outputDir, { recursive: true });
-    runOpencli(["xiaohongshu", "download", noteUrl, "--output", outputDir, "-f", "json"], 120000);
+    runOpencli([adapter, "download", noteUrl, "--output", outputDir, "-f", "json"], 120000);
     const imagePath = findFirstImage(outputDir);
     if (!imagePath) return null;
     const buffer = fs.readFileSync(imagePath);
@@ -111,7 +120,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ status: "ok", version: "2.0" }));
+    res.end(JSON.stringify({ status: "ok", version: "2.1" }));
     return;
   }
 

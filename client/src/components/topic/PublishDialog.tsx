@@ -189,7 +189,7 @@ export default function PublishDialog({ topicId, topicTitle, mode = "publish", o
               value={noteUrl}
               onChange={(e) => setNoteUrl(e.target.value)}
               className="w-full border border-hairline bg-paper px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
-              placeholder="https://www.xiaohongshu.com/explore/..."
+              placeholder="https://www.xiaohongshu.com/explore/... 或 https://www.rednote.com/explore/..."
             />
             <p className="text-xs text-muted mt-1">请粘贴完整链接，不支持 xhslink.com 短链接</p>
           </div>
