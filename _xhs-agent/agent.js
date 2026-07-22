@@ -26,6 +26,75 @@ const OPENCLI_JS = path.join(
   "main.js",
 );
 
+function textFrom(value) {
+  if (!value) return "";
+  if (Buffer.isBuffer(value)) return value.toString("utf-8");
+  return String(value);
+}
+
+function firstLine(text) {
+  return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+}
+
+function pickJsonError(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const source = parsed.error && typeof parsed.error === "object" ? parsed.error : parsed;
+    return {
+      code: source.code || parsed.code,
+      message: source.message || parsed.message,
+      help: source.help || parsed.help,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function matchField(text, field) {
+  const jsonMatch = text.match(new RegExp(`"${field}"\\s*:\\s*"([^"]+)"`));
+  if (jsonMatch) return jsonMatch[1].trim();
+  const yamlMatch = text.match(new RegExp(`\\b${field}:\\s*([^\\r\\n]+)`));
+  return yamlMatch ? yamlMatch[1].trim() : "";
+}
+
+function normalizeOpencliError(err) {
+  const chunks = [
+    textFrom(err.stdout),
+    textFrom(err.stderr),
+    textFrom(err.message),
+  ].filter(Boolean);
+  const raw = chunks.join("\n");
+  const jsonError = chunks.map(pickJsonError).find(Boolean);
+  const code =
+    jsonError?.code ||
+    matchField(raw, "code") ||
+    (raw.includes("EMPTY_RESULT") ? "EMPTY_RESULT" : "");
+  const message = jsonError?.message || matchField(raw, "message") || firstLine(raw);
+  const help = jsonError?.help || matchField(raw, "help") || "";
+
+  if (code === "EMPTY_RESULT" || raw.includes("returned no data") || err.status === 66) {
+    return {
+      ok: false,
+      code: "EMPTY_RESULT",
+      error: "小红书创作者后台没有返回这篇笔记的数据。",
+      help: "请确认笔记ID正确，并确认当前 Chrome 登录的创作者账号有权限查看这篇笔记。若刚登录或切换过账号，请刷新创作者后台后重试。",
+      detail: message || help,
+      exitCode: err.status || 66,
+    };
+  }
+
+  return {
+    ok: false,
+    code: code || "OPENCLI_ERROR",
+    error: message || "小红书数据抓取失败。",
+    help: help || "请确认本地助手、OpenCLI、Chrome 登录状态正常后重试。",
+    exitCode: err.status,
+  };
+}
+
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
@@ -120,7 +189,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ status: "ok", version: "2.1" }));
+    res.end(JSON.stringify({ status: "ok", version: "2.2" }));
     return;
   }
 
@@ -137,7 +206,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, data }));
     } catch (err) {
       res.writeHead(200, headers);
-      res.end(JSON.stringify({ ok: false, error: err.message }));
+      res.end(JSON.stringify(normalizeOpencliError(err)));
     }
     return;
   }
@@ -163,8 +232,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, headers);
       res.end(JSON.stringify({ ok: true, data, cover }));
     } catch (err) {
-      res.writeHead(500, headers);
-      res.end(JSON.stringify({ error: err.message }));
+      res.writeHead(200, headers);
+      res.end(JSON.stringify(normalizeOpencliError(err)));
     }
     return;
   }

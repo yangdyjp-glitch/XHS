@@ -81,6 +81,61 @@ function computeSnapshot(detail: any[], publishedAt: string, targetDay: number) 
   return result;
 }
 
+function stringifyAgentError(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return ["code", "message", "error", "help"]
+      .map((key) => record[key])
+      .filter((part): part is string => typeof part === "string" && part.length > 0)
+      .join(" ");
+  }
+  return String(value);
+}
+
+function pickAgentField(result: any, field: string): string {
+  const direct = result?.[field];
+  if (typeof direct === "string") return direct;
+  const nested = result?.error?.[field];
+  return typeof nested === "string" ? nested : "";
+}
+
+function formatFetchFailure(result: any, xhsId: string): { status: NoteStatus; message: string } {
+  const rawText = [
+    pickAgentField(result, "code"),
+    stringifyAgentError(result?.error),
+    stringifyAgentError(result?.message),
+    stringifyAgentError(result?.help),
+    stringifyAgentError(result?.detail),
+  ].filter(Boolean).join(" ");
+  const code = pickAgentField(result, "code") || (rawText.includes("EMPTY_RESULT") ? "EMPTY_RESULT" : "");
+
+  if (code === "EMPTY_RESULT" || /returned no data|No note detail data found/.test(rawText)) {
+    return {
+      status: "skipped",
+      message: `小红书未返回该笔记数据，已跳过。请确认笔记ID ${xhsId} 属于当前 Chrome 登录的创作者账号，必要时重新登录创作者后台后重试。`,
+    };
+  }
+
+  if (/login|auth|未登录|登录已失效|权限/i.test(rawText)) {
+    return {
+      status: "error",
+      message: "小红书登录状态或账号权限异常，请在 Chrome 打开创作者后台重新登录后再试。",
+    };
+  }
+
+  const message = stringifyAgentError(result?.error) || stringifyAgentError(result?.message);
+  if (!message || message.startsWith("Command failed:") || message.length > 160) {
+    return {
+      status: "error",
+      message: "抓取失败，请检查本地助手、OpenCLI 和小红书登录状态后重试。",
+    };
+  }
+
+  return { status: "error", message };
+}
+
 export default function AutoFetchPage() {
   const [agentStatus, setAgentStatus] = useState<"checking" | "online" | "offline">("checking");
   const [whoami, setWhoami] = useState<WhoamiInfo | null>(null);
@@ -190,8 +245,9 @@ export default function AutoFetchPage() {
         });
         const result = await res.json();
         if (!result.ok || !result.data) {
-          item.status = "error";
-          item.message = result.error || "抓取失败";
+          const failure = formatFetchFailure(result, xhsId);
+          item.status = failure.status;
+          item.message = failure.message;
           setProgress([...progressList]);
           continue;
         }
